@@ -21,7 +21,7 @@
 --------------------------------------------------------------------------------
 -- Utilities
 
-local function __TROOPSHIP__isEmpty(t)
+function TROOPSHIP_UTILS__isEmpty(t)
     if t == nil then
         return true
     elseif next(t) == nil then
@@ -31,7 +31,7 @@ local function __TROOPSHIP__isEmpty(t)
     end
 end
 
-local function __TROOPSHIP__getValidatedZoneForName(zone_name, default)
+function TROOPSHIP_UTILS_getValidatedZoneForName(zone_name, default)
     if zone_name == nil then
         return default
     end
@@ -48,7 +48,7 @@ local function __TROOPSHIP__getValidatedZoneForName(zone_name, default)
     end
 end
 
-local function __TROOPSHIP__getValidatedZonesFromNames(zone_names, default)
+function TROOPSHIP_UTILS_getValidatedZonesFromNames(zone_names, default)
     if zone_names == nil then
         return default
     end
@@ -65,7 +65,7 @@ local function __TROOPSHIP__getValidatedZonesFromNames(zone_names, default)
         end
         -- end
     end
-    if __TROOPSHIP__isEmpty(zones) then
+    if TROOPSHIP_UTILS__isEmpty(zones) then
         return default
     else
         table.sort(zones, function(x,y) return x.__TROOPSHIP__name < y.__TROOPSHIP__name end)
@@ -73,7 +73,21 @@ local function __TROOPSHIP__getValidatedZonesFromNames(zone_names, default)
     end
 end
 
-local function __TROOPSHIP__getFirstUnit(moose_group)
+function TROOPSHIP_UTILS_getMaxSpeedOfSlowestUnit(moose_group)
+    local max_speed_of_slowest_unit = nil
+    local dcs_group = moose_group:GetDCSObject()
+    for index, unit in pairs(dcs_group:getUnits()) do
+        local unit_speed = unit:getDesc().speedMax
+        if max_speed_of_slowest_unit == nil then
+            max_speed_of_slowest_unit = unit_speed
+        elseif unit_speed < max_speed_of_slowest_unit then
+            max_speed_of_slowest_unit = unit_speed
+        end
+    end
+    return max_speed_of_slowest_unit
+end
+
+function TROOPSHIP_UTILS_getFirstUnit(moose_group)
     for _, unit in pairs( moose_group:GetUnits() ) do
         return unit
     end
@@ -95,7 +109,7 @@ function __TROOPSHIP__DynamicTroopSpawner.new(name, zone_name, template_group_na
     local self = setmetatable({}, __TROOPSHIP__DynamicTroopSpawner)
     self.spawner_name = name
     self.spawn_zone_name = zone_name
-    self.spawn_zone = __TROOPSHIP__getValidatedZoneForName(self.spawn_zone_name)
+    self.spawn_zone = TROOPSHIP_UTILS_getValidatedZoneForName(self.spawn_zone_name)
     if self.spawn_zone == nil then
         error(string.format("Cannot find zone '%s", self.spawn_zone_name))
     end
@@ -217,14 +231,14 @@ end
 
 -- Register routing/waypoint zones
 function TROOPCOMMAND:RegisterRoutingZoneNames(zone_names)
-    if __TROOPSHIP__isEmpty(zone_names) then return end
+    if TROOPSHIP_UTILS__isEmpty(zone_names) then return end
     for _, zone_name in pairs(zone_names) do
-        local zone = __TROOPSHIP__getValidatedZoneForName(zone_name)
+        local zone = TROOPSHIP_UTILS_getValidatedZoneForName(zone_name)
         if zone ~= nil then
             self.routing_zones[#self.routing_zones+1] = zone
         end
     end
-    if not __TROOPSHIP__isEmpty(self.routing_zones) then
+    if not TROOPSHIP_UTILS__isEmpty(self.routing_zones) then
         table.sort(self.routing_zones, function(x,y) return x.__TROOPSHIP__name < y.__TROOPSHIP__name end)
     end
 end
@@ -328,7 +342,7 @@ function TROOPCOMMAND:__registerGroupAsTroop(moose_group, troop_name, troop_opti
     end
     local deploy_route_to_zone_name = troop_options["deploy_route_to_zone_name"] or nil
     if deploy_route_to_zone_name ~= nil then
-        deploy_route_to_zone = __TROOPSHIP__getValidatedZoneForName(deploy_route_to_zone_name, nil)
+        deploy_route_to_zone = TROOPSHIP_UTILS_getValidatedZoneForName(deploy_route_to_zone_name, nil)
     end
     self.deployed_troops[troop_id] = {
             troop_id=troop_id,
@@ -501,7 +515,7 @@ function TROOPCOMMAND:BuildCommandAndControlMenu(c2_client, options)
         if parent_menu_id == c2_client.c2_submenu_id then
             c2_client.c2_submenu_item_ids[#c2_client.c2_submenu_item_ids+1] = troop_menu_item_id
         end
-        if not __TROOPSHIP__isEmpty(self.routing_zones) then
+        if not TROOPSHIP_UTILS__isEmpty(self.routing_zones) then
             local routing_submenu_id = missionCommands.addSubMenuForGroup(c2_client.group_id, "Move to", troop_menu_item_id)
             local routing_item_parent_menu_id = routing_submenu_id
             local current_routing_menu_item_count = 0
@@ -529,7 +543,7 @@ function TROOPCOMMAND:BuildCommandAndControlMenu(c2_client, options)
             "Pop blue smoke",
             smoke_submenu_id,
             function()
-                __TROOPSHIP__getFirstUnit(troop.moose_group):SmokeBlue()
+                TROOPSHIP_UTILS_getFirstUnit(troop.moose_group):SmokeBlue()
             end,
             nil)
         missionCommands.addCommandForGroup(
@@ -537,7 +551,7 @@ function TROOPCOMMAND:BuildCommandAndControlMenu(c2_client, options)
             "Pop green smoke",
             smoke_submenu_id,
             function()
-                __TROOPSHIP__getFirstUnit(troop.moose_group):SmokeGreen()
+                TROOPSHIP_UTILS_getFirstUnit(troop.moose_group):SmokeGreen()
             end,
             nil)
         missionCommands.addCommandForGroup(
@@ -545,7 +559,7 @@ function TROOPCOMMAND:BuildCommandAndControlMenu(c2_client, options)
             "Pop orange smoke",
             smoke_submenu_id,
             function()
-                __TROOPSHIP__getFirstUnit(troop.moose_group):SmokeOrange()
+                TROOPSHIP_UTILS_getFirstUnit(troop.moose_group):SmokeOrange()
             end,
             nil)
         missionCommands.addCommandForGroup(
@@ -553,7 +567,7 @@ function TROOPCOMMAND:BuildCommandAndControlMenu(c2_client, options)
             "Pop red smoke",
             smoke_submenu_id,
             function()
-                __TROOPSHIP__getFirstUnit(troop.moose_group):SmokeRed()
+                TROOPSHIP_UTILS_getFirstUnit(troop.moose_group):SmokeRed()
             end,
             nil)
         local flare_submenu_id = missionCommands.addSubMenuForGroup(c2_client.group_id, "Flare", troop_menu_item_id)
@@ -562,7 +576,7 @@ function TROOPCOMMAND:BuildCommandAndControlMenu(c2_client, options)
             "Red flare",
             flare_submenu_id,
             function()
-                __TROOPSHIP__getFirstUnit(troop.moose_group):FlareRed()
+                TROOPSHIP_UTILS_getFirstUnit(troop.moose_group):FlareRed()
             end,
             nil)
         missionCommands.addCommandForGroup(
@@ -570,7 +584,7 @@ function TROOPCOMMAND:BuildCommandAndControlMenu(c2_client, options)
             "White flare",
             flare_submenu_id,
             function()
-                __TROOPSHIP__getFirstUnit(troop.moose_group):FlareGreen()
+                TROOPSHIP_UTILS_getFirstUnit(troop.moose_group):FlareGreen()
             end,
             nil)
         missionCommands.addCommandForGroup(
@@ -578,7 +592,7 @@ function TROOPCOMMAND:BuildCommandAndControlMenu(c2_client, options)
             "Yellow flare",
             flare_submenu_id,
             function()
-                __TROOPSHIP__getFirstUnit(troop.moose_group):FlareYellow()
+                TROOPSHIP_UTILS_getFirstUnit(troop.moose_group):FlareYellow()
             end,
             nil)
         local report_submenu_id = missionCommands.addSubMenuForGroup(c2_client.group_id, "Report", troop_menu_item_id)
@@ -649,7 +663,7 @@ function TROOPSHIP.new(unit_name, troop_command, troopship_options)
     self.pickup_radius = troopship_options["pickup_radius"] or 100
     -- self.deploy_route_to_zone_names = troopship_options["deploy_route_to_zone_names"] or nil
     -- if self.deploy_route_to_zone_names then
-    --     self.deploy_route_to_zones = __TROOPSHIP__getValidatedZonesFromNames(self.deploy_route_to_zone_names, nil)
+    --     self.deploy_route_to_zones = TROOPSHIP_UTILS_getValidatedZonesFromNames(self.deploy_route_to_zone_names, nil)
     -- end
     self.deploy_route_to_zones = troopship_options["deploy_route_to_zones"] or nil
     self.is_disable_general_unload = false
@@ -670,6 +684,7 @@ function TROOPSHIP.new(unit_name, troop_command, troopship_options)
     self.loading_time_per_unit = 1
     self.unloading_time_per_unit = 1
     self.pickup_unit_zone = ZONE_UNIT:New(string.format("%s Unit Zone", self.unit_name), self.moose_unit, self.pickup_radius)
+    -- menu setup
     self.max_menu_items = 10
     self.load_management_submenu = missionCommands.addSubMenuForGroup(self.group_id, "Chalk", nil)
     self.available_for_pickup_submenu = missionCommands.addSubMenuForGroup(self.group_id, "Load", self.load_management_submenu)
@@ -688,6 +703,7 @@ function TROOPSHIP.new(unit_name, troop_command, troopship_options)
         self.load_management_submenu,
         function() self:ScanForPickupGroups{is_report_results=true} end,
         nil)
+    -- start monitoring air status
     self.air_status_check_fn_id = nil
     self.air_status_check_frequency = 3
     self.is_in_air_status = nil
@@ -888,7 +904,7 @@ end
 
 -- Clear pick-up menu
 function TROOPSHIP:ClearPickupMenu()
-    if not __TROOPSHIP__isEmpty(self.available_for_pickup_submenu_items) then
+    if not TROOPSHIP_UTILS__isEmpty(self.available_for_pickup_submenu_items) then
         for _, item in pairs(self.available_for_pickup_submenu_items) do
             missionCommands.removeItemForGroup(self.group_id, item)
         end
@@ -898,7 +914,7 @@ end
 
 -- Clear pick-up menu
 function TROOPSHIP:ClearUnloadMenu()
-    if not __TROOPSHIP__isEmpty(self.unload_submenu_items) then
+    if not TROOPSHIP_UTILS__isEmpty(self.unload_submenu_items) then
         for _, item in pairs(self.unload_submenu_items) do
             missionCommands.removeItemForGroup(self.group_id, item)
         end

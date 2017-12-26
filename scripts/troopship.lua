@@ -288,9 +288,11 @@ end
 function TROOPCOMMAND:RegisterTroop(group_name, troop_options)
     local moose_group = GROUP:FindByName(group_name)
     if moose_group == nil then
-        error(string.format("Cannot find group '%s'", group_name))
+        -- error(string.format("Cannot find group '%s'", group_name))
+        return
+    else
+        return self:__registerGroupAsTroop(moose_group, troop_options)
     end
-    return self:__registerGroupAsTroop(moose_group, troop_options)
 end
 
 -- Calculate a troop id

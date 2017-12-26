@@ -996,6 +996,8 @@ function TROOPSHIP:LoadTroops(troop)
         if self.verbosity >= 1 then
             self:__loadmasterMessage( string.format("Loading %s, sir!", troop.troop_name) )
         end
+        self:ClearPickupMenu() -- suppress loading/unloading till the current job is complete or canceled
+        self:ClearUnloadMenu() -- suppress loading/unloading till the current job is complete or canceled
         if troop.troop_source == "existing-group" then
             local dcs_group = troop.moose_group:GetDCSObject()
             -- record units that are alive, so dead ones can be removed from
@@ -1024,6 +1026,10 @@ function TROOPSHIP:LoadTroops(troop)
                     end,
                     success_message="Loading complete, sir!",
                     cancel_message="Loading aborted, sir!",
+                    on_cancel_fn=function()
+                        self:RebuildUnloadMenu()
+                        self:ScanForPickupGroups{is_report_results=false, is_report_positive_results=false}
+                    end,
                     num_units_transferred=0,
                     transfer_time_per_unit=self.loading_time_multiplier_per_unit * troop.loading_time_per_unit,
                     time=time})
@@ -1041,6 +1047,8 @@ function TROOPSHIP:UnloadTroops(troop, args)
         self:__loadmasterMessage("Cannot unload while we are in the air, sir!")
     else
         self:__loadmasterMessage(string.format("Unloading %s, sir!", troop.troop_name))
+        self:ClearPickupMenu() -- suppress loading/unloading till the current job is complete or canceled
+        self:ClearUnloadMenu() -- suppress loading/unloading till the current job is complete or canceled
         timer.scheduleFunction(
             function(args, time)
                 return self:__executeLoadTransfer({
@@ -1087,6 +1095,10 @@ function TROOPSHIP:UnloadTroops(troop, args)
                     end,
                     success_message="Unloading complete, sir!",
                     cancel_message="Unloading aborted, sir!",
+                    on_cancel_fn=function()
+                        self:RebuildUnloadMenu()
+                        self:ScanForPickupGroups{is_report_results=false, is_report_positive_results=false}
+                    end,
                     num_units_transferred=0,
                     transfer_time_per_unit=self.loading_time_multiplier_per_unit * troop.unloading_time_per_unit,
                     time=time})

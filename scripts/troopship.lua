@@ -956,29 +956,59 @@ function TROOPSHIP:RebuildUnloadMenu()
     if TROOPSHIP_UTILS__isEmpty(self.current_load) or self.moose_unit:InAir() then
         return
     else
+        local parent_menu_id = self.unload_submenu
+        local current_menu_item_count = 0
         for _, troop in pairs(self.current_load) do
-            local menu_text = string.format("Unload %s", troop.troop_name)
+            local menu_text = troop.troop_name
             if not self.is_disable_general_unload then
+                current_menu_item_count = current_menu_item_count + 1
+                if current_menu_item_count == self.max_menu_items then
+                    local more_submenu_id = missionCommands.addSubMenuForGroup(self.group_id, "More", parent_menu_id)
+                    if parent_menu_id == self.unload_submenu then
+                        self.unload_submenu_items[menu_text] = more_submenu_id
+                    end
+                    current_menu_item_count = 1
+                    parent_menu_id = more_submenu_id
+                end
                 local item = missionCommands.addCommandForGroup(
                     self.group_id,
                     menu_text,
-                    self.unload_submenu,
+                    parent_menu_id,
                     function() self:UnloadTroops(troop, {}) end,
                     nil)
-                self.unload_submenu_items[menu_text] = item
+                if parent_menu_id == self.unload_submenu then
+                    self.unload_submenu_items[menu_text] = item
+                end
             end
-            -- if self.deploy_route_to_zones then
-            --     for _, deploy_route_to_zone in ipairs(self.deploy_route_to_zones) do
-            --         menu_text = string.format("Unload to %s", deploy_route_to_zone.__TROOPSHIP__name)
-            --         local item = missionCommands.addCommandForGroup(
-            --             self.group_id,
-            --             menu_text,
-            --             self.unload_submenu,
-            --             function() self:UnloadTroops(troop, {deploy_route_to_zone=deploy_route_to_zone}) end,
-            --             nil)
-            --         self.unload_submenu_items[menu_text] = item
-            --     end
-            -- end
+            if self.deploy_route_to_zones then
+                current_menu_item_count = current_menu_item_count + 1
+                if current_menu_item_count == self.max_menu_items then
+                    local more_submenu_id = missionCommands.addSubMenuForGroup(self.group_id, "More", parent_menu_id)
+                    if parent_menu_id == self.unload_submenu then
+                        self.unload_submenu_items[menu_text] = more_submenu_id
+                    end
+                    current_menu_item_count = 1
+                    parent_menu_id = more_submenu_id
+                end
+                local unload_to_submenu_id = missionCommands.addSubMenuForGroup(self.group_id, string.format("%s to", troop.troop_name), parent_menu_id)
+                parent_menu_id = unload_to_submenu_id
+                current_menu_item_count = 1
+                for _, deploy_route_to_zone in ipairs(self.deploy_route_to_zones) do
+                    menu_text = string.format("%s to %s", troop.troop_name, deploy_route_to_zone.__TROOPSHIP__name)
+                    current_menu_item_count = current_menu_item_count + 1
+                    if current_menu_item_count == self.max_menu_items then
+                        local more_submenu_id = missionCommands.addSubMenuForGroup(self.group_id, "More", parent_menu_id)
+                        current_menu_item_count = 1
+                        parent_menu_id = more_submenu_id
+                    end
+                    local item = missionCommands.addCommandForGroup(
+                        self.group_id,
+                        menu_text,
+                        parent_menu_id,
+                        function() self:UnloadTroops(troop, {deploy_route_to_zone=deploy_route_to_zone}) end,
+                        nil)
+                end
+            end
         end
     end
 end

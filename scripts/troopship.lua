@@ -88,9 +88,10 @@ function TROOPSHIP_UTILS_getMaxSpeedOfSlowestUnit(moose_group)
 end
 
 function TROOPSHIP_UTILS_getFirstUnit(moose_group)
-    for _, unit in pairs( moose_group:GetUnits() ) do
-        return unit
-    end
+    return moose_group:GetUnit(1)
+    -- for _, unit in pairs( moose_group:GetUnits() ) do
+    --     return unit
+    -- end
 end
 
 --------------------------------------------------------------------------------
@@ -350,6 +351,10 @@ function TROOPCOMMAND:__registerGroupAsTroop(moose_group, troop_name, troop_opti
             troop_source="existing-group",
             moose_group=moose_group,
             group_spawner=SPAWN:New(moose_group:GetName()),
+            loading_time_per_unit=troop_options[loading_time_per_unit] or 1,
+            unloading_time_per_unit=troop_options[unloading_time_per_unit] or 1,
+            load_cost=troop_options["load_cost"] or 0,
+            restrict_to_carry_types=troop_options["restrict_to_carry_types"] or nil,
             -- group_size=moose_group:GetSize(),
             deploy_route_to_zone=deploy_route_to_zone,
             deploy_route_to_zone_name=deploy_route_to_zone_name,
@@ -459,6 +464,9 @@ function TROOPCOMMAND:__createCommandAndControlShip(unit_name, c2ship_options)
         c2_client.c2_submenu_id = missionCommands.addSubMenuForGroup(c2_client.group_id, "Troop C&C", nil)
         c2_client.c2_submenu_item_ids = nil
         self:BuildCommandAndControlMenu(c2_client)
+        if c2ship_options["post_create_fn"] ~= nil then
+            c2ship_options["post_create_fn"](c2_client)
+        end
         self.unrealized_c2ship_options[unit_name] = nil
         self.c2ships[unit_name] = c2_client
         return c2_client
@@ -681,8 +689,9 @@ function TROOPSHIP.new(unit_name, troop_command, troopship_options)
     self.moose_unit = CLIENT:FindByName(self.unit_name)
     self.moose_group = self.moose_unit:GetGroup()
     self.current_chalk = nil
-    self.loading_time_per_unit = 1
-    self.unloading_time_per_unit = 1
+    self.loading_time_multiplier_per_unit = troopship_options["loading_time_multiplier_per_unit"] or 1
+    self.unloading_time_multiplier_per_unit = troopship_options["unloading_time_multiplier_per_unit"] or 1
+    self.carrying_capacity = troopship_options["carrying_capacity"] or nil
     self.pickup_unit_zone = ZONE_UNIT:New(string.format("%s Unit Zone", self.unit_name), self.moose_unit, self.pickup_radius)
     -- menu setup
     self.max_menu_items = 10
@@ -994,11 +1003,11 @@ function TROOPSHIP:LoadTroops(troop)
                     success_message="Loading complete, sir!",
                     cancel_message="Loading aborted, sir!",
                     num_units_transferred=0,
-                    transfer_time_per_unit=self.loading_time_per_unit,
+                    transfer_time_per_unit=self.loading_time_multiplier_per_unit * troop.loading_time_per_unit,
                     time=time})
             end,
             nil,
-            timer.getTime() + self.loading_time_per_unit
+            timer.getTime() + self.loading_time_multiplier_per_unit
             )
     end
 end
@@ -1050,11 +1059,11 @@ function TROOPSHIP:UnloadTroops(args)
                     success_message="Unloading complete, sir!",
                     cancel_message="Unloading aborted, sir!",
                     num_units_transferred=0,
-                    transfer_time_per_unit=self.loading_time_per_unit,
+                    transfer_time_per_unit=self.loading_time_multiplier_per_unit * self.current_chalk.unloading_time_per_unit,
                     time=time})
             end,
             nil,
-            timer.getTime() + self.loading_time_per_unit
+            timer.getTime() + self.loading_time_multiplier_per_unit
             )
     end
 end

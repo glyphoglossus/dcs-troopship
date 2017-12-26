@@ -285,12 +285,12 @@ end
 -- Troop Registration/Management --
 
 -- Register an existing group as a valid troop, specified by group name
-function TROOPCOMMAND:RegisterTroop(group_name, troop_name, troop_options)
+function TROOPCOMMAND:RegisterTroop(group_name, troop_options)
     local moose_group = GROUP:FindByName(group_name)
     if moose_group == nil then
         error(string.format("Cannot find group '%s'", group_name))
     end
-    return self:__registerGroupAsTroop(moose_group, troop_name, troop_options)
+    return self:__registerGroupAsTroop(moose_group, troop_options)
 end
 
 -- Calculate a troop id
@@ -333,10 +333,8 @@ function TROOPCOMMAND:__calcTroopID(moose_group)
 end
 
 -- Register a (MOOSE) group as a valid troop
-function TROOPCOMMAND:__registerGroupAsTroop(moose_group, troop_name, troop_options)
-    if not troop_name or troop_name == "" then
-        troop_name = moose_group:GetName()
-    end
+function TROOPCOMMAND:__registerGroupAsTroop(moose_group, troop_options)
+    local troop_name = troop_options["troop_name"] or moose_group:GetName()
     local troop_id = self:__calcTroopID(moose_group)
     if troop_options == nil then
         troop_options = {}
@@ -688,7 +686,8 @@ function TROOPSHIP.new(unit_name, troop_command, troopship_options)
     self.group_id = self.group:getID()
     self.moose_unit = CLIENT:FindByName(self.unit_name)
     self.moose_group = self.moose_unit:GetGroup()
-    self.current_chalk = nil
+    self.current_load = {}
+    self.current_load_cost = 0
     self.loading_time_multiplier_per_unit = troopship_options["loading_time_multiplier_per_unit"] or 1
     self.unloading_time_multiplier_per_unit = troopship_options["unloading_time_multiplier_per_unit"] or 1
     self.carrying_capacity = troopship_options["carrying_capacity"] or nil
@@ -723,13 +722,16 @@ end
 -- Should be called after a respawn/rebirth
 function TROOPSHIP:Start()
     self:AirStatusMonitoringStart()
-    if self.current_chalk ~= nil then
+    if self.current_load ~= nil then
         -- Carrying a troop from a previous life ...
         -- We *could* catch the death event and spawn any chalks carried back
         -- at the original pick-up point to preserve the troop ...
         -- but I think here we are going to just erase them.
-        self.troop_command:PurgeTroop(self.current_chalk)
-        self.current_chalk = nil
+        for _, troop in pairs(self.current_load) do
+            self.troop_command:PurgeTroop(self.current_load)
+        end
+        self.current_load = {}
+        self.current_load_cost = 0
     end
     self:ScanForPickupGroups{is_report_results=false, is_report_positive_results=false}
     self:RebuildUnloadMenu()
@@ -738,13 +740,16 @@ end
 -- Should be called after death/unbirth
 function TROOPSHIP:Stop()
     self:AirStatusMonitoringStop()
-    if self.current_chalk ~= nil then
+    if self.current_load ~= nil then
         -- Carrying a troop from a previous life ...
         -- We *could* catch the death event and spawn any chalks carried back
         -- at the original pick-up point to preserve the troop ...
         -- but I think here we are going to just erase them.
-        self.troop_command:PurgeTroop(self.current_chalk)
-        self.current_chalk = nil
+        for _, troop in pairs(self.current_load) do
+            self.troop_command:PurgeTroop(self.current_load)
+        end
+        self.current_load = {}
+        self.current_load_cost = 0
     end
     self:ClearPickupMenu()
     self:ClearUnloadMenu()
@@ -780,7 +785,7 @@ end
 -- Function to check if state changes from in air to land or vice versa
 function TROOPSHIP:__onEventTouchDown()
     self.in_air = false
-    if self.current_chalk == nil and self.is_autoscan_on_touchdown then
+    if self.is_autoscan_on_touchdown then
         num_groups_found = self:ScanForPickupGroups{is_report_results=false, is_report_positive_results=false}
         if num_groups_found > 0 and self.is_autoreport_on_touchdown then
             local group_text = "groups"
@@ -818,14 +823,26 @@ function TROOPSHIP:AirStatusMonitoringStop()
 end
 
 -- Message
-function TROOPSHIP:__loadmasterMessage(message)
-    self.moose_unit:Message( message, 1, self.loadmaster_name )
+function TROOPSHIP:__loadmasterMessage(message, duration)
+    if duration == nil then
+        duration = 1
+    end
+    self.moose_unit:Message( message, duration, self.loadmaster_name )
 end
 
 -- Report current load
 function TROOPSHIP:ReportLoadStatus()
-    if self.current_chalk then
-        self:__loadmasterMessage(string.format("Carrying %s, with %s", self.current_chalk.troop_name, self.current_chalk.troop_status.composition_summary))
+    if not TROOPSHIP_UTILS__isEmpty(self.current_load) then
+        local report = ""
+        if #self.current_load == 1 then
+            report = report .. "Carrying one chalk, sir!"
+        else
+            report = report .. string.format("Carrying %s chalks, sir!", #self.current_load)
+        end
+        for _, troop in pairs(self.current_load) do
+            report = report .. string.format("\n- %s, with %s.",troop.troop_name, troop.troop_status.composition_summary)
+        end
+        self:__loadmasterMessage(report, #self.current_load * 2)
     else
         self:__loadmasterMessage("No load, sir!")
     end
@@ -934,30 +951,32 @@ end
 -- Rebuilt unload menu
 function TROOPSHIP:RebuildUnloadMenu()
     self:ClearUnloadMenu()
-    if self.current_chalk == nil or self.moose_unit:InAir() then
+    if TROOPSHIP_UTILS__isEmpty(self.current_load) or self.moose_unit:InAir() then
         return
     else
-        local menu_text = "Unload"
-        if not self.is_disable_general_unload then
-            local item = missionCommands.addCommandForGroup(
-                self.group_id,
-                menu_text,
-                self.unload_submenu,
-                function() self:UnloadTroops({}) end,
-                nil)
-            self.unload_submenu_items[menu_text] = item
-        end
-        if self.deploy_route_to_zones then
-            for _, deploy_route_to_zone in ipairs(self.deploy_route_to_zones) do
-                menu_text = string.format("Unload to %s", deploy_route_to_zone.__TROOPSHIP__name)
+        for _, troop in pairs(self.current_load) do
+            local menu_text = string.format("Unload %s", troop.troop_name)
+            if not self.is_disable_general_unload then
                 local item = missionCommands.addCommandForGroup(
                     self.group_id,
                     menu_text,
                     self.unload_submenu,
-                    function() self:UnloadTroops{deploy_route_to_zone=deploy_route_to_zone} end,
+                    function() self:UnloadTroops(troop, {}) end,
                     nil)
                 self.unload_submenu_items[menu_text] = item
             end
+            -- if self.deploy_route_to_zones then
+            --     for _, deploy_route_to_zone in ipairs(self.deploy_route_to_zones) do
+            --         menu_text = string.format("Unload to %s", deploy_route_to_zone.__TROOPSHIP__name)
+            --         local item = missionCommands.addCommandForGroup(
+            --             self.group_id,
+            --             menu_text,
+            --             self.unload_submenu,
+            --             function() self:UnloadTroops(troop, {deploy_route_to_zone=deploy_route_to_zone}) end,
+            --             nil)
+            --         self.unload_submenu_items[menu_text] = item
+            --     end
+            -- end
         end
     end
 end
@@ -966,8 +985,10 @@ end
 function TROOPSHIP:LoadTroops(troop)
     if self.moose_unit:InAir() then
         self:__loadmasterMessage("Cannot load up while we are in the air, sir!")
-    elseif self.current_chalk ~= nil then
+    elseif (self.carrying_capacity == nil and not TROOPSHIP_UTILS__isEmpty(self.current_load)) then
         self:__loadmasterMessage("We are already loaded up, sir!")
+    elseif (self.carrying_capacity ~= nil and self.current_load_cost + troop.load_cost > self.carrying_capacity) then
+        self:__loadmasterMessage("We cannot fit this group on board, sir!")
     elseif troop.moose_group:IsNotInZone(self.pickup_unit_zone) then
         self:__loadmasterMessage("Group has moved away, sir!")
         self:ScanForPickupGroups{is_report_results=false, is_report_positive_results=false}
@@ -986,7 +1007,6 @@ function TROOPSHIP:LoadTroops(troop)
             troop.current_unit_ids = current_unit_ids
             troop.num_units = troop.moose_group:GetSize()
             troop.troop_status = self.troop_command:GetTroopStatus(troop)
-            self.current_chalk = troop
         else
             error(string.format("Unrecognized troop source: '%s'", troop.troop_source))
         end
@@ -997,8 +1017,10 @@ function TROOPSHIP:LoadTroops(troop)
                     transfer_fn=function()
                         self.troop_command:WithdrawTroop(troop.troop_id)
                         troop.moose_group:GetDCSObject():destroy()
-                        self:ClearPickupMenu()
+                        self.current_load[1+#self.current_load] = troop
+                        self.current_load_cost = self.current_load_cost + troop.load_cost
                         self:RebuildUnloadMenu()
+                        self:ScanForPickupGroups{is_report_results=false, is_report_positive_results=false}
                     end,
                     success_message="Loading complete, sir!",
                     cancel_message="Loading aborted, sir!",
@@ -1013,53 +1035,60 @@ function TROOPSHIP:LoadTroops(troop)
 end
 
 -- unload a group
-function TROOPSHIP:UnloadTroops(args)
+function TROOPSHIP:UnloadTroops(troop, args)
     local direct_to_zone = args["deploy_route_to_zone"] or nil
-    if self.current_chalk == nil then
-        self:__loadmasterMessage("We are not carrying a load, sir!")
-    elseif self.moose_unit:InAir() then
+    if self.moose_unit:InAir() then
         self:__loadmasterMessage("Cannot unload while we are in the air, sir!")
     else
-        self:__loadmasterMessage("Unloading, sir!")
+        self:__loadmasterMessage(string.format("Unloading %s, sir!", troop.troop_name))
         timer.scheduleFunction(
             function(args, time)
                 return self:__executeLoadTransfer({
-                    num_units=self.current_chalk.num_units,
+                    num_units=troop.num_units,
                     transfer_fn=function()
-                        -- local group = self.current_chalk.moose_group_spawner:SpawnFromUnit(self.moose_unit)
+                        -- local group = troop.moose_group_spawner:SpawnFromUnit(self.moose_unit)
                         local moose_group = nil
-                        moose_group = self.current_chalk.group_spawner:SpawnFromUnit(self.moose_unit)
-                        if self.current_chalk.troop_source == "existing-group" then
+                        moose_group = troop.group_spawner:SpawnFromUnit(self.moose_unit)
+                        if troop.troop_source == "existing-group" then
                             -- remove dead units from group
                             local dcs_group = moose_group:GetDCSObject()
                             for index, unit in pairs(dcs_group:getUnits()) do
-                                if self.current_chalk.current_unit_ids[unit:getNumber()] == nil then
+                                if troop.current_unit_ids[unit:getNumber()] == nil then
                                     unit:destroy()
                                 end
                             end
-                            self.current_chalk.current_unit_ids = nil
+                            troop.current_unit_ids = nil
                             self.troop_command:RestoreTroop{
-                                troop_id=self.current_chalk.troop_id,
+                                troop_id=troop.troop_id,
                                 update_group=moose_group}
                         else
-                            error(string.format("Unrecognized troop source: '%s'", self.current_chalk.troop_source))
+                            error(string.format("Unrecognized troop source: '%s'", troop.troop_source))
                         end
-                        if direct_to_zone == nil and self.current_chalk.deploy_route_to_zone ~= nil then
-                            direct_to_zone = self.current_chalk.deploy_route_to_zone
+                        if direct_to_zone == nil and troop.deploy_route_to_zone ~= nil then
+                            direct_to_zone = troop.deploy_route_to_zone
                         end
                         if direct_to_zone ~= nil then
                             -- local target_coord = deploy_route_to_zone:GetRandomCoordinate()
                             local target_coord = direct_to_zone:GetCoordinate()
-                            moose_group:RouteGroundTo(target_coord, self.current_chalk.deploy_route_to_speed, self.current_chalk.deploy_route_to_formation, 1)
+                            moose_group:RouteGroundTo(target_coord, troop.deploy_route_to_speed, troop.deploy_route_to_formation, 1)
                         end
-                        self.current_chalk = nil
-                        self:ClearUnloadMenu()
+                        local new_load = {}
+                        local new_load_cost = 0
+                        for _, old_load_troop in pairs(self.current_load) do
+                            if troop ~= old_load_troop then
+                                new_load[1+#new_load] = old_load_troop
+                                new_load_cost = new_load_cost + old_load_troop.load_cost
+                            end
+                        end
+                        self.current_load = new_load
+                        self.current_load_cost = new_load_cost
+                        self:RebuildUnloadMenu()
                         self:ScanForPickupGroups{is_report_results=false, is_report_positive_results=false}
                     end,
                     success_message="Unloading complete, sir!",
                     cancel_message="Unloading aborted, sir!",
                     num_units_transferred=0,
-                    transfer_time_per_unit=self.loading_time_multiplier_per_unit * self.current_chalk.unloading_time_per_unit,
+                    transfer_time_per_unit=self.loading_time_multiplier_per_unit * troop.unloading_time_per_unit,
                     time=time})
             end,
             nil,

@@ -719,7 +719,7 @@ function __troopship.TROOPSHIP.new(unit_name, troop_command, troopship_options)
         self)
     missionCommands.addCommandForGroup(
         self.group_id,
-        "Scan for pick-up groups",
+        "Check for groups to pick-up",
         self.load_management_submenu,
         function() self:ScanForPickupGroups{is_report_results=true} end,
         nil)
@@ -867,7 +867,7 @@ function __troopship.TROOPSHIP:ScanForPickupGroups(args)
     self:ClearPickupMenu()
     if self.moose_unit:InAir() then
         if is_report_results then
-            self:__loadmasterMessage("We're in the air, sir!")
+            self:__loadmasterMessage("We're not on the ground, sir!")
         end
         return 0
     else
@@ -1034,7 +1034,7 @@ end
 -- Load a group
 function __troopship.TROOPSHIP:LoadTroops(troop)
     if self.moose_unit:InAir() then
-        self:__loadmasterMessage("Cannot load up while we are in the air, sir!")
+        self:__loadmasterMessage("Cannot load up while we are not on the ground, sir!")
     elseif (self.carrying_capacity == nil and not __troopship.utils.isEmpty(self.current_load)) then
         self:__loadmasterMessage("We are already loaded up, sir!")
     elseif (self.carrying_capacity ~= nil and self.current_load_cost + troop.load_cost > self.carrying_capacity) then
@@ -1094,7 +1094,7 @@ end
 function __troopship.TROOPSHIP:UnloadTroops(troop, args)
     local direct_to_zone = args["deploy_route_to_zone"] or nil
     if self.moose_unit:InAir() then
-        self:__loadmasterMessage("Cannot unload while we are in the air, sir!")
+        self:__loadmasterMessage("Cannot unload while we are not on the ground, sir!")
     else
         self:__loadmasterMessage(string.format("Unloading %s, sir!", troop.troop_name))
         self:ClearPickupMenu() -- suppress loading/unloading till the current job is complete or canceled

@@ -606,7 +606,7 @@ function TROOPCOMMAND:BuildCommandAndControlMenu(c2_client, options)
         local report_submenu_id = missionCommands.addSubMenuForGroup(c2_client.group_id, "Report", troop_menu_item_id)
         missionCommands.addCommandForGroup(
             c2_client.group_id,
-            "Report status",
+            "Status",
             report_submenu_id,
             function()
                 local troop_status = self:GetTroopStatus(troop)
@@ -673,7 +673,13 @@ function TROOPSHIP.new(unit_name, troop_command, troopship_options)
     -- if self.deploy_route_to_zone_names then
     --     self.deploy_route_to_zones = TROOPSHIP_UTILS_getValidatedZonesFromNames(self.deploy_route_to_zone_names, nil)
     -- end
+    if troopship_options["is_disable_deploy_to_zone_unload"] ~= nil then
+        self.is_disable_deploy_to_zone_unload = troopship_options["is_disable_deploy_to_zone_unload"]
+    end
     self.deploy_route_to_zones = troopship_options["deploy_route_to_zones"] or nil
+    if troopship_options["is_disable_general_unload"] ~= nil then
+        self.is_disable_general_unload = troopship_options["is_disable_general_unload"]
+    end
     self.is_disable_general_unload = false
     if troopship_options["is_disable_general_unload"] ~= nil then
         self.is_disable_general_unload = troopship_options["is_disable_general_unload"]
@@ -703,7 +709,7 @@ function TROOPSHIP.new(unit_name, troop_command, troopship_options)
     self.unload_submenu_items = nil
     missionCommands.addCommandForGroup(
         self.group_id,
-        "Report status",
+        "Status",
         self.load_management_submenu,
         self.ReportLoadStatus,
         self)
@@ -958,53 +964,61 @@ function TROOPSHIP:RebuildUnloadMenu()
     else
         local parent_menu_id = self.unload_submenu
         local current_menu_item_count = 0
-        for _, troop in pairs(self.current_load) do
-            local menu_text = troop.troop_name
-            if not self.is_disable_general_unload then
-                current_menu_item_count = current_menu_item_count + 1
-                if current_menu_item_count == self.max_menu_items then
-                    local more_submenu_id = missionCommands.addSubMenuForGroup(self.group_id, "More", parent_menu_id)
-                    if parent_menu_id == self.unload_submenu then
-                        self.unload_submenu_items[menu_text] = more_submenu_id
-                    end
-                    current_menu_item_count = 1
-                    parent_menu_id = more_submenu_id
+        for i1, troop in pairs(self.current_load) do
+            current_menu_item_count = current_menu_item_count + 1
+            if current_menu_item_count == self.max_menu_items then
+                local more_submenu_id = missionCommands.addSubMenuForGroup(self.group_id, "More", parent_menu_id)
+                if parent_menu_id == self.unload_submenu then
+                    self.unload_submenu_items[1+#self.unload_submenu_items] = more_submenu_id
                 end
+                current_menu_item_count = 1
+                parent_menu_id = more_submenu_id
+            end
+            if TROOPSHIP_UTILS__isEmpty(self.deploy_route_to_zones) or self.is_disable_deploy_to_zone_unload then
                 local item = missionCommands.addCommandForGroup(
                     self.group_id,
-                    menu_text,
+                    troop.troop_name,
                     parent_menu_id,
                     function() self:UnloadTroops(troop, {}) end,
                     nil)
                 if parent_menu_id == self.unload_submenu then
-                    self.unload_submenu_items[menu_text] = item
+                    self.unload_submenu_items[1+#self.unload_submenu_items] = item
                 end
-            end
-            if self.deploy_route_to_zones then
-                current_menu_item_count = current_menu_item_count + 1
-                if current_menu_item_count == self.max_menu_items then
-                    local more_submenu_id = missionCommands.addSubMenuForGroup(self.group_id, "More", parent_menu_id)
-                    if parent_menu_id == self.unload_submenu then
-                        self.unload_submenu_items[menu_text] = more_submenu_id
-                    end
-                    current_menu_item_count = 1
-                    parent_menu_id = more_submenu_id
+            else
+                -- current_menu_item_count = current_menu_item_count + 1
+                -- if current_menu_item_count == self.max_menu_items then
+                --     local more_submenu_id = missionCommands.addSubMenuForGroup(self.group_id, "More", parent_menu_id)
+                --     if parent_menu_id == self.unload_submenu then
+                --         self.unload_submenu_items[1+#self.unload_submenu_items] = more_submenu_id
+                --     end
+                --     current_menu_item_count = 1
+                --     parent_menu_id = more_submenu_id
+                -- end
+                local unload_to_submenu_id = missionCommands.addSubMenuForGroup(self.group_id, troop.troop_name, parent_menu_id)
+                if parent_menu_id == self.unload_submenu then
+                    self.unload_submenu_items[1+#self.unload_submenu_items] = unload_to_submenu_id
                 end
-                local unload_to_submenu_id = missionCommands.addSubMenuForGroup(self.group_id, string.format("%s to", troop.troop_name), parent_menu_id)
-                parent_menu_id = unload_to_submenu_id
+                deploy_item_parent_menu_id = unload_to_submenu_id
                 current_menu_item_count = 1
-                for _, deploy_route_to_zone in ipairs(self.deploy_route_to_zones) do
-                    menu_text = string.format("%s to %s", troop.troop_name, deploy_route_to_zone.__TROOPSHIP__name)
+                if not self.is_disable_general_unload then
+                    local item = missionCommands.addCommandForGroup(
+                        self.group_id,
+                        "Here",
+                        deploy_item_parent_menu_id,
+                        function() self:UnloadTroops(troop, {}) end,
+                        nil)
+                end
+                for i2, deploy_route_to_zone in ipairs(self.deploy_route_to_zones) do
                     current_menu_item_count = current_menu_item_count + 1
                     if current_menu_item_count == self.max_menu_items then
-                        local more_submenu_id = missionCommands.addSubMenuForGroup(self.group_id, "More", parent_menu_id)
+                        local more_submenu_id = missionCommands.addSubMenuForGroup(self.group_id, "More", deploy_item_parent_menu_id)
                         current_menu_item_count = 1
-                        parent_menu_id = more_submenu_id
+                        deploy_item_parent_menu_id = more_submenu_id
                     end
                     local item = missionCommands.addCommandForGroup(
                         self.group_id,
-                        menu_text,
-                        parent_menu_id,
+                        string.format("To %s", deploy_route_to_zone.__TROOPSHIP__name),
+                        deploy_item_parent_menu_id,
                         function() self:UnloadTroops(troop, {deploy_route_to_zone=deploy_route_to_zone}) end,
                         nil)
                 end
@@ -1146,10 +1160,14 @@ function TROOPSHIP:__executeLoadTransfer(args)
     local transfer_fn = args["transfer_fn"]
     local success_message = args["success_message"]
     local cancel_message = args["cancel_message"]
+    local on_cancel_fn = args["on_cancel_fn"]
     local num_units_transferred = args["num_units_transferred"] or 0
     local transfer_time_per_unit = args["transfer_time_per_unit"] or 1
     local time = args["time"]
     if self.moose_unit:InAir() then
+        if on_cancel_fn ~= nil then
+            on_cancel_fn()
+        end
         self:__loadmasterMessage(cancel_message)
         return nil
     else

@@ -116,7 +116,7 @@ end
 -- adapted from Ciribob's EXCELLENT CTLD script https://github.com/ciribob/DCS-CTLD
 -- returns nil if no enemy in range
 function __troopship.utils.nearestEnemyPosition(moose_unit, max_search_distance)
-    if not max_search_distance then
+    if max_search_distance == nil then
         max_search_distance = 4000
     end
     local dcs_unit = moose_unit:GetDCSObject()
@@ -143,7 +143,7 @@ function __troopship.utils.nearestEnemyPosition(moose_unit, max_search_distance)
                 local enemy_point = focal_enemy_unit:getPoint()
                 local enemy_dist = __troopship.utils.pointDistance(dcs_unit_point, enemy_point)
                 if enemy_dist < nearest_enemy_dist then
-                    nearest_enemy_unit = focal_enemy_uniy
+                    nearest_enemy_unit = focal_enemy_unit
                     nearest_enemy_point = enemy_point
                     nearest_enemy_dist = enemy_dist
                 end
@@ -160,13 +160,11 @@ end
 -- adapted from Ciribob's EXCELLENT CTLD script https://github.com/ciribob/DCS-CTLD
 function __troopship.utils.moveGroupToNearestEnemyPosition(moose_group, max_search_distance)
     local moose_unit = moose_group:GetUnit(1)
-    local results = __troopship.utils.nearestEnemyPosition(moose_unit)
+    local results = __troopship.utils.nearestEnemyPosition(moose_unit, max_search_distance)
     if results ~= nil then
-        moose_group:RouteToVec3(results.nearest_enemy_point, 999)
-        return results
-    else
-        return nil
+        moose_group:RouteToVec3(results.point, 999)
     end
+    return results
 end
 
 function __troopship.utils.composeLLDDM(point)
@@ -637,7 +635,7 @@ function TROOPCOMMAND:BuildCommandAndControlMenu(c2_client, options)
             function()
                 local results = __troopship.utils.moveGroupToNearestEnemyPosition(troop.moose_group)
                 if results ~= nil then
-                    trigger.action.outTextForCoalition(c2_client.coalition, string.format("%s: moving to engage enemy at ", troop.troop_name, __troopship.utils.composeLLDDM(results.nearest_enemy_point)), 2 )
+                    trigger.action.outTextForCoalition(c2_client.coalition, string.format("%s: moving to engage enemy at: %s", troop.troop_name, __troopship.utils.composeLLDDM(results.point)), 2 )
                 else
                     trigger.action.outTextForGroup(c2_client.group_id, string.format("%s: no enemy detected in vicinity!", troop.troop_name), 2)
                 end

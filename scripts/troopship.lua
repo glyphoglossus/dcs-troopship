@@ -115,15 +115,15 @@ end
 
 -- adapted from Ciribob's EXCELLENT CTLD script https://github.com/ciribob/DCS-CTLD
 -- returns nil if no enemy in range
-function __troopship.utils.nearestEnemyPosition(moose_unit, max_search_distance)
-    if max_search_distance == nil then
-        max_search_distance = 4000
+function __troopship.utils.nearestEnemyPosition(moose_unit, maximum_search_distance)
+    if maximum_search_distance == nil then
+        maximum_search_distance = 2000
     end
     local dcs_unit = moose_unit:GetDCSObject()
     local dcs_unit_point = dcs_unit:getPoint()
     local nearest_enemy_unit = nil
     local nearest_enemy_point = nil
-    local nearest_enemy_dist = max_search_distance + 1
+    local nearest_enemy_dist = maximum_search_distance + 1
     local dcs_groups = nil
     if dcs_unit:getCoalition() == coalition.side.RED then
         dcs_groups = coalition.getGroups(coalition.side.BLUE, Group.Category.GROUND)
@@ -158,9 +158,9 @@ function __troopship.utils.nearestEnemyPosition(moose_unit, max_search_distance)
 end
 
 -- adapted from Ciribob's EXCELLENT CTLD script https://github.com/ciribob/DCS-CTLD
-function __troopship.utils.moveGroupToNearestEnemyPosition(moose_group, max_search_distance)
+function __troopship.utils.moveGroupToNearestEnemyPosition(moose_group, maximum_search_distance)
     local moose_unit = moose_group:GetUnit(1)
-    local results = __troopship.utils.nearestEnemyPosition(moose_unit, max_search_distance)
+    local results = __troopship.utils.nearestEnemyPosition(moose_unit, maximum_search_distance)
     if results ~= nil then
         moose_group:RouteToVec3(results.point, 999)
     end
@@ -253,6 +253,9 @@ function TROOPCOMMAND.new(name, coalition, options)
     local self = setmetatable({}, TROOPCOMMAND)
     self.name = name -- decorative right now;
     self.coalition = coalition -- decorative right now; coalition.side.RED or coalition.side.BLUE
+    if options == nil then
+        options = {}
+    end
     self.deployed_troops = {}
     self.withdrawn_troops = {}
     self.num_deployed_troops = 0
@@ -439,8 +442,9 @@ function TROOPCOMMAND:__registerGroupAsTroop(moose_group, troop_options)
             -- group_size=moose_group:GetSize(),
             deploy_route_to_zone=deploy_route_to_zone,
             deploy_route_to_zone_name=deploy_route_to_zone_name,
-            deploy_route_to_zone_speed=troop_options["deploy_route_to_zone_speed"] or 14,
-            deploy_route_to_zone_formation=troop_options["deploy_route_to_zone_formation"] or "Vee",
+            movement_speed=troop_options["movement_speed"] or 999,
+            movement_formation=troop_options["movement_formation"] or "Vee",
+            maximum_search_distance=troop_options["maximum_search_distance"] or 2000, -- max distance that troops search for enemy
         }
     self.num_deployed_troops = self.num_deployed_troops + 1
     self:UpdateCommandAndControlClientMenus()
@@ -623,7 +627,7 @@ function TROOPCOMMAND:BuildCommandAndControlMenu(c2_client, options)
                     function()
                         local target_coord = zone:GetCoordinate()
                         trigger.action.outTextForCoalition(c2_client.coalition, string.format("%s: moving to %s", troop.troop_name, zone._troopship_zone_display_name), 2 )
-                        troop.moose_group:RouteGroundTo(target_coord, 14, "vee", 1)
+                        troop.moose_group:RouteGroundTo(target_coord, troop.movement_speed, troop.movement_formation, 1)
                     end,
                     nil)
             end
@@ -633,7 +637,7 @@ function TROOPCOMMAND:BuildCommandAndControlMenu(c2_client, options)
             "Advance toward nearest enemy",
             troop_menu_item_id,
             function()
-                local results = __troopship.utils.moveGroupToNearestEnemyPosition(troop.moose_group)
+                local results = __troopship.utils.moveGroupToNearestEnemyPosition(troop.moose_group, troop.maximum_search_distance)
                 if results ~= nil then
                     trigger.action.outTextForCoalition(c2_client.coalition, string.format("%s: moving to engage enemy at: %s", troop.troop_name, __troopship.utils.composeLLDDM(results.point)), 2 )
                 else
@@ -788,6 +792,7 @@ function __troopship.TROOPSHIP.new(unit_name, troop_command, troopship_options)
     end
     self.group = self.unit:getGroup()
     self.group_id = self.group:getID()
+    self.coalition = self.unit:getCoalition()
     self.moose_unit = CLIENT:FindByName(self.unit_name)
     self.moose_group = self.moose_unit:GetGroup()
     self.current_load = {}
@@ -1220,7 +1225,13 @@ function __troopship.TROOPSHIP:UnloadTroops(troop, args)
                         if direct_to_zone ~= nil then
                             -- local target_coord = deploy_route_to_zone:GetRandomCoordinate()
                             local target_coord = direct_to_zone:GetCoordinate()
-                            moose_group:RouteGroundTo(target_coord, troop.deploy_route_to_speed, troop.deploy_route_to_formation, 1)
+                            moose_group:RouteGroundTo(target_coord, troop.movement_speed, troop.movement_formation, 1)
+                            trigger.action.outTextForCoalition(self.coalition, string.format("%s: moving to %s", troop.troop_name, zone._troopship_zone_display_name), 2 )
+                        else
+                            local results = __troopship.utils.moveGroupToNearestEnemyPosition(troop.moose_group, troop.maximum_search_distance)
+                            if results ~= nil then
+                                trigger.action.outTextForCoalition(self.coalition, string.format("%s: moving to engage enemy at: %s", troop.troop_name, __troopship.utils.composeLLDDM(results.point)), 2 )
+                            end
                         end
                         local new_load = {}
                         local new_load_cost = 0

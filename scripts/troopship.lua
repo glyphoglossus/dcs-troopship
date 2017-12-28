@@ -256,6 +256,14 @@ function TROOPCOMMAND.new(name, coalition, options)
     if options == nil then
         options = {}
     end
+    -- If > 1 then troops will report when they arrive at their routing/navigation zones.
+    -- Set to 0 to increase performance, especially if there are a lot of
+    -- troops moving around a lot.
+    if options["troop_navigation_feedback_verbosity"] ~= nil then
+        self.troop_navigation_feedback_verbosity = options["troop_navigation_feedback_verbosity"]
+    else
+        self.troop_navigation_feedback_verbosity = 1
+    end
     self.deployed_troops = {}
     self.withdrawn_troops = {}
     self.num_deployed_troops = 0
@@ -750,19 +758,21 @@ function TROOPCOMMAND:BuildCommandAndControlMenu(c2_client, options)
 end
 
 function TROOPCOMMAND:SendGroupToZone(troop, zone)
-    timer.scheduleFunction(
-        function(args, time)
-            if not troop.moose_group:IsAlive() then
-                return nil
-            elseif troop.moose_group:IsNotInZone(zone) then
-                return time + 20
-            else
-                trigger.action.outTextForCoalition(troop.coalition, string.format("%s: Arrived at %s", troop.troop_name, zone._troopship_zone_display_name), 4)
-                return nil
-            end
-        end,
-        nil,
-        timer.getTime() + 1)
+    if self.troop_navigation_feedback_verbosity > 0 then
+        timer.scheduleFunction(
+            function(args, time)
+                if not troop.moose_group:IsAlive() then
+                    return nil
+                elseif troop.moose_group:IsNotInZone(zone) then
+                    return time + 20
+                else
+                    trigger.action.outTextForCoalition(troop.coalition, string.format("%s: Arrived at %s", troop.troop_name, zone._troopship_zone_display_name), 4)
+                    return nil
+                end
+            end,
+            nil,
+            timer.getTime() + 1)
+    end
     local target_coord = zone:GetCoordinate()
     troop.moose_group:RouteGroundTo(target_coord, troop.movement_speed, troop.movement_formation, 1)
 end

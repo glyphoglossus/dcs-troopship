@@ -1245,13 +1245,12 @@ function __troopship.TROOPSHIP:UnloadTroops(troop, args)
                         end
                         if direct_to_zone ~= nil then
                             -- local target_coord = deploy_route_to_zone:GetRandomCoordinate()
-                            local target_coord = direct_to_zone:GetCoordinate()
-                            moose_group:RouteGroundTo(target_coord, troop.movement_speed, troop.movement_formation, 1)
-                            trigger.action.outTextForCoalition(self.coalition, string.format("%s: moving to %s", troop.troop_name, zone._troopship_zone_display_name), 2 )
+                            trigger.action.outTextForCoalition(self.coalition, string.format("%s: Moving to %s", troop.troop_name, direct_to_zone._troopship_zone_display_name), 2 )
+                            self.troop_command:SendGroupToZone(troop, direct_to_zone)
                         else
                             local results = __troopship.utils.moveGroupToNearestEnemyPosition(troop.moose_group, troop.maximum_search_distance)
                             if results ~= nil then
-                                trigger.action.outTextForCoalition(self.coalition, string.format("%s: moving to engage enemy at: %s", troop.troop_name, __troopship.utils.composeLLDDM(results.point)), 2 )
+                                trigger.action.outTextForCoalition(self.coalition, string.format("%s: Moving to engage enemy at: %s", troop.troop_name, __troopship.utils.composeLLDDM(results.point)), 2 )
                             end
                         end
                         local new_load = {}

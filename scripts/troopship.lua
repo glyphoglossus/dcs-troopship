@@ -252,7 +252,7 @@ setmetatable(TROOPCOMMAND, {
 function TROOPCOMMAND.new(name, coalition, options)
     local self = setmetatable({}, TROOPCOMMAND)
     self.name = name -- decorative right now;
-    self.coalition = coalition -- decorative right now; coalition.side.RED or coalition.side.BLUE
+    self.coalition = coalition -- coalition.side.RED or coalition.side.BLUE; used for coalition-wide messages
     if options == nil then
         options = {}
     end
@@ -434,6 +434,8 @@ function TROOPCOMMAND:__registerGroupAsTroop(moose_group, troop_options)
             troop_name=troop_name,
             troop_source="existing-group",
             moose_group=moose_group,
+            -- coalition=moose_group:GetCoalition(),
+            coalition=self.coalition,
             group_spawner=SPAWN:New(moose_group:GetName()),
             loading_time_per_unit=troop_options[loading_time_per_unit] or 1,
             unloading_time_per_unit=troop_options[unloading_time_per_unit] or 1,
@@ -625,9 +627,10 @@ function TROOPCOMMAND:BuildCommandAndControlMenu(c2_client, options)
                     string.format(zone._troopship_zone_display_name),
                     routing_item_parent_menu_id,
                     function()
-                        local target_coord = zone:GetCoordinate()
-                        trigger.action.outTextForCoalition(c2_client.coalition, string.format("%s: moving to %s", troop.troop_name, zone._troopship_zone_display_name), 2 )
-                        troop.moose_group:RouteGroundTo(target_coord, troop.movement_speed, troop.movement_formation, 1)
+                        -- local target_coord = zone:GetCoordinate()
+                        -- troop.moose_group:RouteGroundTo(target_coord, troop.movement_speed, troop.movement_formation, 1)
+                        trigger.action.outTextForCoalition(c2_client.coalition, string.format("%s: Moving to %s", troop.troop_name, zone._troopship_zone_display_name), 2 )
+                        self:SendGroupToZone(troop, zone)
                     end,
                     nil)
             end
@@ -744,6 +747,24 @@ function TROOPCOMMAND:BuildCommandAndControlMenu(c2_client, options)
         --     end,
         --     nil)
     end
+end
+
+function TROOPCOMMAND:SendGroupToZone(troop, zone)
+    timer.scheduleFunction(
+        function(args, time)
+            if not troop.moose_group:IsAlive() then
+                return nil
+            elseif troop.moose_group:IsNotInZone(zone) then
+                return time + 20
+            else
+                trigger.action.outTextForCoalition(troop.coalition, string.format("%s: Arrived at %s", troop.troop_name, zone._troopship_zone_display_name), 4)
+                return nil
+            end
+        end,
+        nil,
+        timer.getTime() + 1)
+    local target_coord = zone:GetCoordinate()
+    troop.moose_group:RouteGroundTo(target_coord, troop.movement_speed, troop.movement_formation, 1)
 end
 
 --------------------------------------------------------------------------------

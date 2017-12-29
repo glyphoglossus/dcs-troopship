@@ -35,7 +35,7 @@ function __troopship.utils.isEmpty(t)
     end
 end
 
-function __troopship.utils.getValidatedZoneForName(zone_name, default)
+function __troopship.utils.getValidatedZoneFromName(zone_name, default)
     if zone_name == nil then
         return default
     end
@@ -45,7 +45,7 @@ function __troopship.utils.getValidatedZoneForName(zone_name, default)
     -- end
     local ok, zone = pcall(function() return ZONE:New(zone_name) end)
     if ok then
-        zone._troopship_zone_display_name = zone:GetName()
+        zone.display_name = zone:GetName()
         return zone
     else
         return default
@@ -64,7 +64,7 @@ function __troopship.utils.getValidatedZonesFromNames(zone_names, default)
         local ok, zone = pcall(function() return ZONE:New(zone_name) end)
         if ok then
             zone_count = zone_count + 1
-            zone._troopship_zone_display_name = zone:GetName()
+            zone.display_name = zone:GetName()
             zones[zone_count] = zone
         end
         -- end
@@ -72,7 +72,7 @@ function __troopship.utils.getValidatedZonesFromNames(zone_names, default)
     if __troopship.utils.isEmpty(zones) then
         return default
     else
-        table.sort(zones, function(x,y) return x._troopship_zone_display_name < y._troopship_zone_display_name end)
+        table.sort(zones, function(x,y) return x.display_name < y.display_name end)
         return zones
     end
 end
@@ -191,7 +191,7 @@ function __troopship.DynamicTroopSpawner.new(name, zone_name, template_group_nam
     local self = setmetatable({}, __troopship.DynamicTroopSpawner)
     self.spawner_name = name
     self.spawn_zone_name = zone_name
-    self.spawn_zone = __troopship.utils.getValidatedZoneForName(self.spawn_zone_name)
+    self.spawn_zone = __troopship.utils.getValidatedZoneFromName(self.spawn_zone_name)
     if self.spawn_zone == nil then
         error(string.format("Cannot find zone '%s", self.spawn_zone_name))
     end
@@ -326,13 +326,13 @@ end
 function TROOPCOMMAND:RegisterRoutingZoneNames(zone_names)
     if __troopship.utils.isEmpty(zone_names) then return end
     for _, zone_name in pairs(zone_names) do
-        local zone = __troopship.utils.getValidatedZoneForName(zone_name)
+        local zone = __troopship.utils.getValidatedZoneFromName(zone_name)
         if zone ~= nil then
             self.routing_zones[#self.routing_zones+1] = zone
         end
     end
     if not __troopship.utils.isEmpty(self.routing_zones) then
-        table.sort(self.routing_zones, function(x,y) return x._troopship_zone_display_name < y._troopship_zone_display_name end)
+        table.sort(self.routing_zones, function(x,y) return x.display_name < y.display_name end)
     end
 end
 
@@ -435,7 +435,7 @@ function TROOPCOMMAND:__registerGroupAsTroop(moose_group, troop_options)
     local troop_id = self:__calcTroopID(moose_group)
     local deploy_route_to_zone_name = troop_options["deploy_route_to_zone_name"] or nil
     if deploy_route_to_zone_name ~= nil then
-        deploy_route_to_zone = __troopship.utils.getValidatedZoneForName(deploy_route_to_zone_name, nil)
+        deploy_route_to_zone = __troopship.utils.getValidatedZoneFromName(deploy_route_to_zone_name, nil)
     end
     self.deployed_troops[troop_id] = {
             troop_id=troop_id,
@@ -632,12 +632,12 @@ function TROOPCOMMAND:BuildCommandAndControlMenu(c2_client, options)
                 end
                 missionCommands.addCommandForGroup(
                     c2_client.group_id,
-                    string.format(zone._troopship_zone_display_name),
+                    string.format(zone.display_name),
                     routing_item_parent_menu_id,
                     function()
                         -- local target_coord = zone:GetCoordinate()
                         -- troop.moose_group:RouteGroundTo(target_coord, troop.movement_speed, troop.movement_formation, 1)
-                        trigger.action.outTextForCoalition(c2_client.coalition, string.format("%s: Moving to %s", troop.troop_name, zone._troopship_zone_display_name), 2 )
+                        trigger.action.outTextForCoalition(c2_client.coalition, string.format("%s: Moving to %s", troop.troop_name, zone.display_name), 2 )
                         self:SendGroupToZone(troop, zone)
                     end,
                     nil)
@@ -766,7 +766,7 @@ function TROOPCOMMAND:SendGroupToZone(troop, zone)
                 elseif troop.moose_group:IsNotInZone(zone) then
                     return time + 20
                 else
-                    trigger.action.outTextForCoalition(troop.coalition, string.format("%s: Arrived at %s", troop.troop_name, zone._troopship_zone_display_name), 4)
+                    trigger.action.outTextForCoalition(troop.coalition, string.format("%s: Arrived at %s", troop.troop_name, zone.display_name), 4)
                     return nil
                 end
             end,
@@ -1149,7 +1149,7 @@ function __troopship.TROOPSHIP:RebuildUnloadMenu()
                     end
                     local item = missionCommands.addCommandForGroup(
                         self.group_id,
-                        string.format("To %s", deploy_route_to_zone._troopship_zone_display_name),
+                        string.format("To %s", deploy_route_to_zone.display_name),
                         deploy_item_parent_menu_id,
                         function() self:UnloadTroops(troop, {deploy_route_to_zone=deploy_route_to_zone}) end,
                         nil)
@@ -1255,7 +1255,7 @@ function __troopship.TROOPSHIP:UnloadTroops(troop, args)
                         end
                         if direct_to_zone ~= nil then
                             -- local target_coord = deploy_route_to_zone:GetRandomCoordinate()
-                            trigger.action.outTextForCoalition(self.coalition, string.format("%s: Moving to %s", troop.troop_name, direct_to_zone._troopship_zone_display_name), 2 )
+                            trigger.action.outTextForCoalition(self.coalition, string.format("%s: Moving to %s", troop.troop_name, direct_to_zone.display_name), 2 )
                             self.troop_command:SendGroupToZone(troop, direct_to_zone)
                         else
                             local results = __troopship.utils.moveGroupToNearestEnemyPosition(troop.moose_group, troop.maximum_search_distance)

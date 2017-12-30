@@ -187,7 +187,12 @@ setmetatable(__troopship.DynamicTroopSpawner, {
     end,
 })
 
-function __troopship.DynamicTroopSpawner.new(name, zone_name, template_group_name, troop_command, spawner_options)
+function __troopship.DynamicTroopSpawner.new(
+        name,
+        zone_name,
+        template_group_name,
+        troop_command,
+        troop_options)
     local self = setmetatable({}, __troopship.DynamicTroopSpawner)
     self.spawner_name = name
     self.spawn_zone_name = zone_name
@@ -201,13 +206,14 @@ function __troopship.DynamicTroopSpawner.new(name, zone_name, template_group_nam
         error(string.format("Cannot find group '%s", self.template_group_name))
     end
     self.troop_command = troop_command
-    if spawner_options == nil then
-        spawner_options = {}
+    self.troop_options = troop_options
+    if self.troop_options == nil then
+        self.troop_options = {}
     end
-    self.spawned_troop_name_prefix = spawner_options["spawned_troop_name_prefix"] or self.spawner_name
-    self.troop_spawner = SPAWN:NewWithAlias(self.template_group_name, string.format("%s ", self.spawned_troop_name_prefix))
-    -- self.group_size = self.template_moose_group:GetSize()
-    self.deploy_route_to_zone_name = spawner_options["deploy_route_to_zone_name"] or nil
+    if self.troop_options["troop_name"] == nil then
+        self.troop_options["troop_name"] = self.spawner_name
+    end
+    self.troop_spawner = SPAWN:NewWithAlias(self.template_group_name, string.format("%s ", self.troop_options["troop_name"]))
     self.spawned_count = 0
     return self
 end
@@ -219,7 +225,7 @@ end
 
 -- Return name of next spawned troop
 function __troopship.DynamicTroopSpawner:GetNextSpawnedTroopName()
-    return string.format("%s #%03d", self.spawned_troop_name_prefix, self.spawned_count + 1)
+    return string.format("%s #%03d", self.spawner_name, self.spawned_count + 1)
 end
 
 -- Spawn a new troop
@@ -230,7 +236,7 @@ function __troopship.DynamicTroopSpawner:Spawn()
     if moose_group == nil then
         error("Failed to spawn group")
     end
-    return self.troop_command:__registerGroupAsTroop(moose_group, spawned_troop_name, nil)
+    return self.troop_command:__registerGroupAsTroop(moose_group, self.troop_options)
 end
 
 
@@ -501,8 +507,17 @@ function TROOPCOMMAND:RestoreTroop(args)
 end
 
 -- Register a dynamicload zone to generate troops
-function TROOPCOMMAND:CreateTroopSpawner(name, zone_name, template_group_name, spawner_options)
-    self.dynamic_troop_spawners[#self.dynamic_troop_spawners+1] = __troopship.DynamicTroopSpawner(name, zone_name, template_group_name, self, spawner_options)
+function TROOPCOMMAND:CreateTroopSpawner(
+        name,
+        zone_name,
+        template_group_name,
+        troop_options)
+    self.dynamic_troop_spawners[#self.dynamic_troop_spawners+1] = __troopship.DynamicTroopSpawner(
+            name,
+            zone_name,
+            template_group_name,
+            self,
+            troop_options)
 end
 
 -- Return array of groups in zone

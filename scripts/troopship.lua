@@ -1201,8 +1201,8 @@ function __troopship.TROOPSHIP:LoadTroops(troop)
                         self.current_load_cost = self.current_load_cost + troop.load_cost
                         self:RebuildUnloadMenu()
                         self:ScanForPickupGroups{is_report_results=false, is_report_positive_results=false}
+                        self:__loadmasterMessage("Loading complete, sir!")
                     end,
-                    success_message="Loading complete, sir!",
                     cancel_message="Loading aborted, sir!",
                     on_cancel_fn=function()
                         self:RebuildUnloadMenu()
@@ -1250,6 +1250,7 @@ function __troopship.TROOPSHIP:UnloadTroops(troop, args)
                         else
                             error(string.format("Unrecognized troop source: '%s'", troop.troop_source))
                         end
+                        self:__loadmasterMessage("Unloading complete, sir!")
                         if direct_to_zone == nil and troop.deploy_route_to_zone ~= nil then
                             direct_to_zone = troop.deploy_route_to_zone
                         end
@@ -1276,7 +1277,6 @@ function __troopship.TROOPSHIP:UnloadTroops(troop, args)
                         self:RebuildUnloadMenu()
                         self:ScanForPickupGroups{is_report_results=false, is_report_positive_results=false}
                     end,
-                    success_message="Unloading complete, sir!",
                     cancel_message="Unloading aborted, sir!",
                     on_cancel_fn=function()
                         self:RebuildUnloadMenu()
@@ -1295,7 +1295,6 @@ end
 function __troopship.TROOPSHIP:__executeLoadTransfer(args)
     local num_units = args["num_units"]
     local transfer_fn = args["transfer_fn"]
-    local success_message = args["success_message"]
     local cancel_message = args["cancel_message"]
     local on_cancel_fn = args["on_cancel_fn"]
     local num_units_transferred = args["num_units_transferred"] or 0
@@ -1340,7 +1339,6 @@ function __troopship.TROOPSHIP:__executeLoadTransfer(args)
                     self:__executeLoadTransfer({
                         num_units=num_units,
                         transfer_fn=transfer_fn,
-                        success_message=success_message,
                         cancel_message=cancel_message,
                         num_units_transferred=num_units_transferred,
                         transfer_time_per_unit=transfer_time_per_unit,
@@ -1352,7 +1350,6 @@ function __troopship.TROOPSHIP:__executeLoadTransfer(args)
             return nil
         else
             transfer_fn()
-            self:__loadmasterMessage(success_message)
             return nil
         end
     end

@@ -210,10 +210,7 @@ function __troopship.DynamicTroopSpawner.new(
     if self.troop_options == nil then
         self.troop_options = {}
     end
-    if self.troop_options["troop_name"] == nil then
-        self.troop_options["troop_name"] = self.spawner_name
-    end
-    self.troop_spawner = SPAWN:NewWithAlias(self.template_group_name, string.format("%s ", self.troop_options["troop_name"]))
+    self.troop_spawner = SPAWN:NewWithAlias(self.template_group_name, string.format("%s ", self.spawner_name))
     self.spawned_count = 0
     return self
 end
@@ -236,6 +233,11 @@ function __troopship.DynamicTroopSpawner:Spawn()
     if moose_group == nil then
         error("Failed to spawn group")
     end
+    troop_options = {}
+    for k, v in self.troop_options do
+        troop_options[k] = v
+    end
+    troop_options.troop_name = spawned_troop_name
     return self.troop_command:__registerGroupAsTroop(moose_group, self.troop_options)
 end
 

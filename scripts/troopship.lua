@@ -234,7 +234,7 @@ function __troopship.DynamicTroopSpawner:Spawn()
         error("Failed to spawn group")
     end
     troop_options = {}
-    for k, v in self.troop_options do
+    for k, v in pairs(self.troop_options) do
         troop_options[k] = v
     end
     troop_options.troop_name = spawned_troop_name

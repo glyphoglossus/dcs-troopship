@@ -290,7 +290,34 @@ end
 -- World Interaction --
 
 function TROOPCOMMAND:onEvent(event)
-    --  Events:
+    --  world.event = {
+    --      S_EVENT_INVALID = 0,
+    --      S_EVENT_SHOT = 1,
+    --      S_EVENT_HIT = 2,
+    --      S_EVENT_TAKEOFF = 3,
+    --      S_EVENT_LAND = 4,
+    --      S_EVENT_CRASH = 5,
+    --      S_EVENT_EJECTION = 6,
+    --      S_EVENT_REFUELING = 7,
+    --      S_EVENT_DEAD = 8,
+    --      S_EVENT_PILOT_DEAD = 9,
+    --      S_EVENT_BASE_CAPTURED = 10,
+    --      S_EVENT_MISSION_START = 11,
+    --      S_EVENT_MISSION_END = 12,
+    --      S_EVENT_TOOK_CONTROL = 13,
+    --      S_EVENT_REFUELING_STOP = 14,
+    --      S_EVENT_BIRTH = 15,
+    --      S_EVENT_HUMAN_FAILURE = 16,
+    --      S_EVENT_ENGINE_STARTUP = 17,
+    --      S_EVENT_ENGINE_SHUTDOWN = 18,
+    --      S_EVENT_PLAYER_ENTER_UNIT = 19,
+    --      S_EVENT_PLAYER_LEAVE_UNIT = 20,
+    --      S_EVENT_PLAYER_COMMENT = 21,
+    --      S_EVENT_SHOOTING_START = 22,
+    --      S_EVENT_SHOOTING_END = 23,
+    --      S_EVENT_MAX = 24
+    --      }
+    --  Relevant Events:
     --      19, world.event.S_EVENT_PLAYER_ENTER_UNIT = Occurs when any player assumes direct control of a unit.
     --      15, world.event.S_EVENT_BIRTH = Occurs when any object is spawned into the mission
     --      20, world.event.S_EVENT_PLAYER_LEAVE_UNIT = Occurs when any player relieves control of a unit
@@ -300,8 +327,9 @@ function TROOPCOMMAND:onEvent(event)
     --  Leave slot and respawn: 20, 19, 15, 17
     --  Crash and die: 3, 16, 9, 5
     --  Crash and die: 2,8,9,5
-    -- if event.id == 15 or event.id == world.event.S_EVENT_BIRTH then -- S_EVENT_BIRTH
-    if event.id == world.event.S_EVENT_BIRTH then -- S_EVENT_BIRTH
+    -- if event.id == world.event.S_EVENT_BIRTH then
+    if event.id == world.event.S_EVENT_TOOK_CONTROL
+            or event.id ==  world.event.S_EVENT_PLAYER_ENTER_UNIT then
         local unit_name = event.initiator:getName()
         if self.unrealized_troopship_options[unit_name] ~= nil then
             self:__createTroopship(unit_name, self.unrealized_troopship_options[unit_name])
@@ -320,6 +348,7 @@ function TROOPCOMMAND:onEvent(event)
             or event.id == world.event.S_EVENT_PLAYER_LEAVE_UNIT then
         -- just 'dead' does not seem to work in the event of a crash
         local unit_name = event.initiator:getName()
+        trigger.action.outText("OK!", 5)
         if self.troopships[unit_name] ~= nil then
             self.troopships[unit_name]:Stop()
         end

@@ -341,14 +341,15 @@ function TROOPCOMMAND:onEvent(event)
         elseif self.c2ships[unit_name] ~= nil then
             -- self:BuildCommandAndControlMenu(self.c2ships[unit_name]) -- should not need this, as TROOPCOMMAND automatically updates all C2 clients continuously
         end
-    elseif event.id == world.event.S_EVENT_PILOT_DEAD
-            or event.id == world.event.S_EVENT_EJECTION
-            or event.id == world.event.S_EVENT_CRASH
-            or event.id == world.event.S_EVENT_DEAD
-            or event.id == world.event.S_EVENT_PLAYER_LEAVE_UNIT then
+    elseif event.id == world.event.S_EVENT_PLAYER_LEAVE_UNIT
+            or event.id == world.event.S_EVENT_PILOT_DEAD
+            -- or event.id == world.event.S_EVENT_EJECTION
+            -- or event.id == world.event.S_EVENT_CRASH
+            -- or event.id == world.event.S_EVENT_DEAD
+            -- or event.id == world.event.S_EVENT_PLAYER_LEAVE_UNIT then
+            then
         -- just 'dead' does not seem to work in the event of a crash
         local unit_name = event.initiator:getName()
-        trigger.action.outText("OK!", 5)
         if self.troopships[unit_name] ~= nil then
             self.troopships[unit_name]:Stop()
         end

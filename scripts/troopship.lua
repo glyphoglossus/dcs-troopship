@@ -339,7 +339,7 @@ function TROOPCOMMAND:onEvent(event)
         if self.unrealized_c2ship_options[unit_name] ~= nil then
             self:__createCommandAndControlShip(unit_name, self.unrealized_c2ship_options[unit_name])
         elseif self.c2ships[unit_name] ~= nil then
-            -- self:BuildCommandAndControlMenu(self.c2ships[unit_name]) -- should not need this, as TROOPCOMMAND automatically updates all C2 clients continuously
+            self:BuildCommandAndControlMenu(self.c2ships[unit_name]) -- should not need this, as TROOPCOMMAND automatically updates all C2 clients continuously
         end
     elseif event.id == world.event.S_EVENT_PLAYER_LEAVE_UNIT
             or event.id == world.event.S_EVENT_PILOT_DEAD
@@ -475,6 +475,14 @@ function TROOPCOMMAND:__registerGroupAsTroop(moose_group, troop_options)
     if deploy_route_to_zone_name ~= nil then
         deploy_route_to_zone = __troopship.utils.getValidatedZoneFromName(deploy_route_to_zone_name, nil)
     end
+    troop_is_loadable = true
+    if troop_options["is_loadable"] ~= nil then
+        is_loadable = troop_options["is_loadable"]
+    end
+    is_commandable = true
+    if troop_options["is_commandable"] ~= nil then
+        is_commandable = troop_options["is_commandable"]
+    end
     self.deployed_troops[troop_id] = {
             troop_id=troop_id,
             troop_name=troop_name,
@@ -493,6 +501,8 @@ function TROOPCOMMAND:__registerGroupAsTroop(moose_group, troop_options)
             movement_speed=troop_options["movement_speed"] or 999,
             movement_formation=troop_options["movement_formation"] or "Vee",
             maximum_search_distance=troop_options["maximum_search_distance"] or 2000, -- max distance that troops search for enemy
+            is_loadable=troop_is_loadable,
+            is_commandable=troop_is_commandable,
         }
     self.num_deployed_troops = self.num_deployed_troops + 1
     self:UpdateCommandAndControlClientMenus()
@@ -553,13 +563,13 @@ function TROOPCOMMAND:CreateTroopSpawner(
 end
 
 -- Return array of groups in zone
-function TROOPCOMMAND:FindDeployedTroopsInZone(zone)
+function TROOPCOMMAND:FindLoadableTroopsInZone(zone)
     local results = {}
     for troop_id, troop in pairs(self.deployed_troops) do
         -- if troop.moose_group:IsCompletelyInZone(zone) then
         -- if troop.moose_group:IsPartlyInZone(zone) then -- note: false if all units are in zone
         -- if troop.moose_group:IsCompletelyInZone(zone) or troop.moose_group:IsPartlyInZone(zone) then
-        if not troop.moose_group:IsNotInZone(zone) then
+        if troop.is_loadable and not troop.moose_group:IsNotInZone(zone) then
             results[#results+1] = troop
         end
     end
@@ -653,154 +663,127 @@ function TROOPCOMMAND:BuildCommandAndControlMenu(c2_client, options)
         troops = options["troops"]
     end
     for _, troop in ipairs(troops) do
-        current_menu_item_count = current_menu_item_count + 1
-        if current_menu_item_count == self.max_menu_items then
-            local more_submenu_id = missionCommands.addSubMenuForGroup(c2_client.group_id, "More", parent_menu_id)
+        if troop.is_commandable then
+            current_menu_item_count = current_menu_item_count + 1
+            if current_menu_item_count == self.max_menu_items then
+                local more_submenu_id = missionCommands.addSubMenuForGroup(c2_client.group_id, "More", parent_menu_id)
+                if parent_menu_id == c2_client.c2_submenu_id then
+                    c2_client.c2_submenu_item_ids[#c2_client.c2_submenu_item_ids+1] = more_submenu_id
+                end
+                parent_menu_id = more_submenu_id
+                current_menu_item_count = 1
+            end
+            local troop_menu_item_id = missionCommands.addSubMenuForGroup(c2_client.group_id, troop.troop_name, parent_menu_id)
             if parent_menu_id == c2_client.c2_submenu_id then
-                c2_client.c2_submenu_item_ids[#c2_client.c2_submenu_item_ids+1] = more_submenu_id
+                c2_client.c2_submenu_item_ids[#c2_client.c2_submenu_item_ids+1] = troop_menu_item_id
             end
-            parent_menu_id = more_submenu_id
-            current_menu_item_count = 1
-        end
-        local troop_menu_item_id = missionCommands.addSubMenuForGroup(c2_client.group_id, troop.troop_name, parent_menu_id)
-        if parent_menu_id == c2_client.c2_submenu_id then
-            c2_client.c2_submenu_item_ids[#c2_client.c2_submenu_item_ids+1] = troop_menu_item_id
-        end
-        if not __troopship.utils.isEmpty(self.routing_zones) then
-            local routing_submenu_id = missionCommands.addSubMenuForGroup(c2_client.group_id, "Move to", troop_menu_item_id)
-            local routing_item_parent_menu_id = routing_submenu_id
-            local current_routing_menu_item_count = 0
-            for _, zone in ipairs(self.routing_zones) do
-                current_routing_menu_item_count = current_routing_menu_item_count + 1
-                if current_routing_menu_item_count == self.max_menu_items then
-                    local more_submenu_id = missionCommands.addSubMenuForGroup(c2_client.group_id, "More", routing_item_parent_menu_id)
-                    routing_item_parent_menu_id = more_submenu_id
-                    current_routing_menu_item_count = 1
+            if not __troopship.utils.isEmpty(self.routing_zones) then
+                local routing_submenu_id = missionCommands.addSubMenuForGroup(c2_client.group_id, "Move to", troop_menu_item_id)
+                local routing_item_parent_menu_id = routing_submenu_id
+                local current_routing_menu_item_count = 0
+                for _, zone in ipairs(self.routing_zones) do
+                    current_routing_menu_item_count = current_routing_menu_item_count + 1
+                    if current_routing_menu_item_count == self.max_menu_items then
+                        local more_submenu_id = missionCommands.addSubMenuForGroup(c2_client.group_id, "More", routing_item_parent_menu_id)
+                        routing_item_parent_menu_id = more_submenu_id
+                        current_routing_menu_item_count = 1
+                    end
+                    missionCommands.addCommandForGroup(
+                        c2_client.group_id,
+                        string.format(zone.display_name),
+                        routing_item_parent_menu_id,
+                        function()
+                            -- local target_coord = zone:GetCoordinate()
+                            -- troop.moose_group:RouteGroundTo(target_coord, troop.movement_speed, troop.movement_formation, 1)
+                            trigger.action.outTextForCoalition(c2_client.coalition, string.format("%s: Moving to %s", troop.troop_name, zone.display_name), 2 )
+                            self:SendGroupToZone(troop, zone)
+                        end,
+                        nil)
                 end
-                missionCommands.addCommandForGroup(
-                    c2_client.group_id,
-                    string.format(zone.display_name),
-                    routing_item_parent_menu_id,
-                    function()
-                        -- local target_coord = zone:GetCoordinate()
-                        -- troop.moose_group:RouteGroundTo(target_coord, troop.movement_speed, troop.movement_formation, 1)
-                        trigger.action.outTextForCoalition(c2_client.coalition, string.format("%s: Moving to %s", troop.troop_name, zone.display_name), 2 )
-                        self:SendGroupToZone(troop, zone)
-                    end,
-                    nil)
             end
+            missionCommands.addCommandForGroup(
+                c2_client.group_id,
+                "Advance toward nearest enemy",
+                troop_menu_item_id,
+                function()
+                    local results = __troopship.utils.moveGroupToNearestEnemyPosition(troop.moose_group, troop.maximum_search_distance)
+                    if results ~= nil then
+                        trigger.action.outTextForCoalition(c2_client.coalition, string.format("%s: moving to engage enemy at: %s", troop.troop_name, __troopship.utils.composeLLDDM(results.point)), 2 )
+                    else
+                        trigger.action.outTextForGroup(c2_client.group_id, string.format("%s: no enemy detected in vicinity!", troop.troop_name), 2)
+                    end
+                end,
+                nil)
+            local smoke_submenu_id = missionCommands.addSubMenuForGroup(c2_client.group_id, "Smoke", troop_menu_item_id)
+            missionCommands.addCommandForGroup(
+                c2_client.group_id,
+                "Pop blue smoke",
+                smoke_submenu_id,
+                function()
+                    __troopship.utils.getFirstUnit(troop.moose_group):SmokeBlue()
+                end,
+                nil)
+            missionCommands.addCommandForGroup(
+                c2_client.group_id,
+                "Pop green smoke",
+                smoke_submenu_id,
+                function()
+                    __troopship.utils.getFirstUnit(troop.moose_group):SmokeGreen()
+                end,
+                nil)
+            missionCommands.addCommandForGroup(
+                c2_client.group_id,
+                "Pop orange smoke",
+                smoke_submenu_id,
+                function()
+                    __troopship.utils.getFirstUnit(troop.moose_group):SmokeOrange()
+                end,
+                nil)
+            missionCommands.addCommandForGroup(
+                c2_client.group_id,
+                "Pop red smoke",
+                smoke_submenu_id,
+                function()
+                    __troopship.utils.getFirstUnit(troop.moose_group):SmokeRed()
+                end,
+                nil)
+            local flare_submenu_id = missionCommands.addSubMenuForGroup(c2_client.group_id, "Flare", troop_menu_item_id)
+            missionCommands.addCommandForGroup(
+                c2_client.group_id,
+                "Red flare",
+                flare_submenu_id,
+                function()
+                    __troopship.utils.getFirstUnit(troop.moose_group):FlareRed()
+                end,
+                nil)
+            missionCommands.addCommandForGroup(
+                c2_client.group_id,
+                "White flare",
+                flare_submenu_id,
+                function()
+                    __troopship.utils.getFirstUnit(troop.moose_group):FlareGreen()
+                end,
+                nil)
+            missionCommands.addCommandForGroup(
+                c2_client.group_id,
+                "Yellow flare",
+                flare_submenu_id,
+                function()
+                    __troopship.utils.getFirstUnit(troop.moose_group):FlareYellow()
+                end,
+                nil)
+            local report_submenu_id = missionCommands.addSubMenuForGroup(c2_client.group_id, "Report", troop_menu_item_id)
+            missionCommands.addCommandForGroup(
+                c2_client.group_id,
+                "Status",
+                report_submenu_id,
+                function()
+                    local troop_status = self:GetTroopStatus(troop)
+                    local message = string.format("%s: %s", troop.troop_name, troop_status.composition_summary_with_kia)
+                    trigger.action.outTextForGroup(c2_client.group_id, message, 5, false)
+                end,
+                nil)
         end
-        missionCommands.addCommandForGroup(
-            c2_client.group_id,
-            "Advance toward nearest enemy",
-            troop_menu_item_id,
-            function()
-                local results = __troopship.utils.moveGroupToNearestEnemyPosition(troop.moose_group, troop.maximum_search_distance)
-                if results ~= nil then
-                    trigger.action.outTextForCoalition(c2_client.coalition, string.format("%s: moving to engage enemy at: %s", troop.troop_name, __troopship.utils.composeLLDDM(results.point)), 2 )
-                else
-                    trigger.action.outTextForGroup(c2_client.group_id, string.format("%s: no enemy detected in vicinity!", troop.troop_name), 2)
-                end
-            end,
-            nil)
-        local smoke_submenu_id = missionCommands.addSubMenuForGroup(c2_client.group_id, "Smoke", troop_menu_item_id)
-        missionCommands.addCommandForGroup(
-            c2_client.group_id,
-            "Pop blue smoke",
-            smoke_submenu_id,
-            function()
-                __troopship.utils.getFirstUnit(troop.moose_group):SmokeBlue()
-            end,
-            nil)
-        missionCommands.addCommandForGroup(
-            c2_client.group_id,
-            "Pop green smoke",
-            smoke_submenu_id,
-            function()
-                __troopship.utils.getFirstUnit(troop.moose_group):SmokeGreen()
-            end,
-            nil)
-        missionCommands.addCommandForGroup(
-            c2_client.group_id,
-            "Pop orange smoke",
-            smoke_submenu_id,
-            function()
-                __troopship.utils.getFirstUnit(troop.moose_group):SmokeOrange()
-            end,
-            nil)
-        missionCommands.addCommandForGroup(
-            c2_client.group_id,
-            "Pop red smoke",
-            smoke_submenu_id,
-            function()
-                __troopship.utils.getFirstUnit(troop.moose_group):SmokeRed()
-            end,
-            nil)
-        local flare_submenu_id = missionCommands.addSubMenuForGroup(c2_client.group_id, "Flare", troop_menu_item_id)
-        missionCommands.addCommandForGroup(
-            c2_client.group_id,
-            "Red flare",
-            flare_submenu_id,
-            function()
-                __troopship.utils.getFirstUnit(troop.moose_group):FlareRed()
-            end,
-            nil)
-        missionCommands.addCommandForGroup(
-            c2_client.group_id,
-            "White flare",
-            flare_submenu_id,
-            function()
-                __troopship.utils.getFirstUnit(troop.moose_group):FlareGreen()
-            end,
-            nil)
-        missionCommands.addCommandForGroup(
-            c2_client.group_id,
-            "Yellow flare",
-            flare_submenu_id,
-            function()
-                __troopship.utils.getFirstUnit(troop.moose_group):FlareYellow()
-            end,
-            nil)
-        local report_submenu_id = missionCommands.addSubMenuForGroup(c2_client.group_id, "Report", troop_menu_item_id)
-        missionCommands.addCommandForGroup(
-            c2_client.group_id,
-            "Status",
-            report_submenu_id,
-            function()
-                local troop_status = self:GetTroopStatus(troop)
-                local message = string.format("%s: %s", troop.troop_name, troop_status.composition_summary_with_kia)
-                trigger.action.outTextForGroup(c2_client.group_id, message, 5, false)
-            end,
-            nil)
-        -- missionCommands.addCommandForGroup(
-        --     c2_client.group_id,
-        --     "Kill a unit",
-        --     troop_menu_item_id,
-        --     function()
-        --         local dcs_group = troop.moose_group:GetDCSObject()
-        --         troop.moose_group:GetUnit(1):Destroy()
-        --         local initial_size = dcs_group:getInitialSize()
-        --         local current_size = dcs_group:getSize()
-        --         local unit_count = 0
-        --         for index, unit in pairs(dcs_group:getUnits()) do
-        --             unit_count = unit_count + 1
-        --             -- trigger.action.outTextForGroup(c2_client.group_id, string.format("Counting %s: %s %s", unit:getNumber(), index, unit_count), 1, false)
-        --         end
-        --         -- trigger.action.outTextForGroup(c2_client.group_id, string.format("Counts: %s %s %s", initial_size, current_size, unit_count), 5, false)
-        --     end,
-        --     nil)
-        -- missionCommands.addCommandForGroup(
-        --     c2_client.group_id,
-        --     "Kill group",
-        --     troop_menu_item_id,
-        --     function()
-        --         local dcs_group = troop.moose_group:GetDCSObject()
-        --         for index, unit in pairs(dcs_group:getUnits()) do
-        --             unit:destroy()
-        --         end
-        --         -- trigger.action.outTextForGroup(c2_client.group_id, "Poof!", 5, false)
-        --     end,
-        --     nil)
     end
 end
 
@@ -909,7 +892,7 @@ end
 -- Should be called after a respawn/rebirth
 function __troopship.TROOPSHIP:Start()
     self:AirStatusMonitoringStart()
-    if self.current_load ~= nil then
+    if not __troopship.utils.isEmpty(self.current_load) then
         -- Carrying a troop from a previous life ...
         -- We *could* catch the death event and spawn any chalks carried back
         -- at the original pick-up point to preserve the troop ...
@@ -927,7 +910,7 @@ end
 -- Should be called after death/unbirth
 function __troopship.TROOPSHIP:Stop()
     self:AirStatusMonitoringStop()
-    if self.current_load ~= nil then
+    if not __troopship.utils.isEmpty(self.current_load) then
         -- Carrying a troop from a previous life ...
         -- We *could* catch the death event and spawn any chalks carried back
         -- at the original pick-up point to preserve the troop ...
@@ -1048,7 +1031,7 @@ function __troopship.TROOPSHIP:ScanForPickupGroups(args)
     else
         spawners = self.troop_command:FindTroopSpawnZonesInVicinity(self.moose_unit)
         local num_spawners_found = #spawners
-        troops = self.troop_command:FindDeployedTroopsInZone(self.pickup_unit_zone)
+        troops = self.troop_command:FindLoadableTroopsInZone(self.pickup_unit_zone)
         local num_troops_found = #troops
         local num_available_found = num_spawners_found + num_troops_found
         if num_available_found > 0 then

@@ -731,7 +731,7 @@ function TROOPCOMMAND:BuildCommandAndControlMenu(c2_client, options)
                 end,
                 nil)
             if not __troopship.utils.isEmpty(self.routing_zones) then
-                local routing_submenu_id = missionCommands.addSubMenuForGroup(c2_client.group_id, "Route to", troop_menu_item_id)
+                local routing_submenu_id = missionCommands.addSubMenuForGroup(c2_client.group_id, "Navigate to", troop_menu_item_id)
                 local routing_item_parent_menu_id = routing_submenu_id
                 local current_routing_menu_item_count = 0
                 for _, zone in ipairs(self.routing_zones) do
@@ -754,6 +754,17 @@ function TROOPCOMMAND:BuildCommandAndControlMenu(c2_client, options)
                         nil)
                 end
             end
+            missionCommands.addCommandForGroup(
+                c2_client.group_id,
+                "Hold position",
+                troop_menu_item_id,
+                function()
+                    local task = troop.moose_group:TaskHold()
+                    troop.moose_group:SetTask(task)
+                    local point = troop.moose_group:GetDCSObject():getUnit(1):getPoint()
+                    trigger.action.outTextForCoalition(c2_client.coalition, string.format("%s: Holding position at %s", troop.troop_name, __troopship.utils.composeLLDDM(point)), 2 )
+                end,
+                nil)
             local smoke_submenu_id = missionCommands.addSubMenuForGroup(c2_client.group_id, "Smoke", troop_menu_item_id)
             missionCommands.addCommandForGroup(
                 c2_client.group_id,
@@ -1344,7 +1355,8 @@ function __troopship.TROOPSHIP:UnloadTroops(troop, options)
                                 trigger.action.outTextForCoalition(self.coalition, string.format("%s: Moving to engage enemy at: %s", troop.troop_name, __troopship.utils.composeLLDDM(results.point)), 2 )
                             end
                         elseif is_hold_position then
-                            moose_group:TaskHold()
+                            local task = moose_group:TaskHold()
+                            moose_group:SetTask(task)
                         end
                         local new_load = {}
                         local new_load_cost = 0

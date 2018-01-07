@@ -475,9 +475,9 @@ function TROOPCOMMAND:__registerGroupAsTroop(moose_group, troop_options)
     if deploy_route_to_zone_name ~= nil then
         deploy_route_to_zone = __troopship.utils.getValidatedZoneFromName(deploy_route_to_zone_name, nil)
     end
-    troop_is_loadable = true
-    if troop_options["is_loadable"] ~= nil then
-        is_loadable = troop_options["is_loadable"]
+    is_transportable = true
+    if troop_options["is_transportable"] ~= nil then
+        is_transportable = troop_options["is_transportable"]
     end
     is_commandable = true
     if troop_options["is_commandable"] ~= nil then
@@ -501,8 +501,8 @@ function TROOPCOMMAND:__registerGroupAsTroop(moose_group, troop_options)
             movement_speed=troop_options["movement_speed"] or 999,
             movement_formation=troop_options["movement_formation"] or "Vee",
             maximum_search_distance=troop_options["maximum_search_distance"] or 2000, -- max distance that troops search for enemy
-            is_loadable=troop_is_loadable,
-            is_commandable=troop_is_commandable,
+            is_transportable=is_transportable,
+            is_commandable=is_commandable,
         }
     self.num_deployed_troops = self.num_deployed_troops + 1
     self:UpdateCommandAndControlClientMenus()
@@ -569,7 +569,7 @@ function TROOPCOMMAND:FindLoadableTroopsInZone(zone)
         -- if troop.moose_group:IsCompletelyInZone(zone) then
         -- if troop.moose_group:IsPartlyInZone(zone) then -- note: false if all units are in zone
         -- if troop.moose_group:IsCompletelyInZone(zone) or troop.moose_group:IsPartlyInZone(zone) then
-        if troop.is_loadable and not troop.moose_group:IsNotInZone(zone) then
+        if troop.is_transportable and not troop.moose_group:IsNotInZone(zone) then
             results[#results+1] = troop
         end
     end
@@ -677,8 +677,61 @@ function TROOPCOMMAND:BuildCommandAndControlMenu(c2_client, options)
             if parent_menu_id == c2_client.c2_submenu_id then
                 c2_client.c2_submenu_item_ids[#c2_client.c2_submenu_item_ids+1] = troop_menu_item_id
             end
+            local advance_to_submenu_id = missionCommands.addSubMenuForGroup(c2_client.group_id, "Advance", troop_menu_item_id)
+            for di, direction in pairs({"North", "Northeast", "East", "Southeast", "South", "Southwest", "West", "Northwest"}) do
+                local compass_direction_submenu_id = missionCommands.addSubMenuForGroup(c2_client.group_id, direction, advance_to_submenu_id)
+                for ds, distance in pairs({0.25, 0.5, 1, 2, 5, 10, 15, 20, 40}) do
+                    missionCommands.addCommandForGroup(
+                        c2_client.group_id,
+                        string.format("%s clicks", distance),
+                        compass_direction_submenu_id,
+                        function()
+                            local point = troop.moose_group:GetDCSObject():getUnit(1):getPoint()
+                            if point ~= nil then
+                                if false then
+                                elseif direction == "North" then
+                                    point.x = point.x + math.floor(distance * 1000)
+                                elseif direction == "Northeast" then
+                                    point.x = point.x + math.floor(distance * 1000)
+                                    point.z = point.z + math.floor(distance * 1000)
+                                elseif direction == "East" then
+                                    point.z = point.z + math.floor(distance * 1000)
+                                elseif direction == "Southeast" then
+                                    point.x = point.x - math.floor(distance * 1000)
+                                    point.z = point.z + math.floor(distance * 1000)
+                                elseif direction == "South" then
+                                    point.x = point.x - math.floor(distance * 1000)
+                                elseif direction == "Southwest" then
+                                    point.x = point.x - math.floor(distance * 1000)
+                                    point.z = point.z - math.floor(distance * 1000)
+                                elseif direction == "West" then
+                                    point.z = point.z - math.floor(distance * 1000)
+                                elseif direction == "Northwest" then
+                                    point.x = point.x + math.floor(distance * 1000)
+                                    point.z = point.z - math.floor(distance * 1000)
+                                end
+                                troop.moose_group:RouteToVec3(point, 999)
+                                trigger.action.outTextForCoalition(c2_client.coalition, string.format("%s: moving %s for %s clicks to %s!", troop.troop_name, direction, distance, __troopship.utils.composeLLDDM(point)), 2 )
+                            end
+                        end,
+                        nil)
+                end
+            end
+            missionCommands.addCommandForGroup(
+                c2_client.group_id,
+                "Toward nearest enemy",
+                advance_to_submenu_id,
+                function()
+                    local results = __troopship.utils.moveGroupToNearestEnemyPosition(troop.moose_group, troop.maximum_search_distance)
+                    if results ~= nil then
+                        trigger.action.outTextForCoalition(c2_client.coalition, string.format("%s: moving to engage enemy at: %s", troop.troop_name, __troopship.utils.composeLLDDM(results.point)), 2 )
+                    else
+                        trigger.action.outTextForGroup(c2_client.group_id, string.format("%s: no enemy detected in vicinity!", troop.troop_name), 2)
+                    end
+                end,
+                nil)
             if not __troopship.utils.isEmpty(self.routing_zones) then
-                local routing_submenu_id = missionCommands.addSubMenuForGroup(c2_client.group_id, "Move to", troop_menu_item_id)
+                local routing_submenu_id = missionCommands.addSubMenuForGroup(c2_client.group_id, "Route to", troop_menu_item_id)
                 local routing_item_parent_menu_id = routing_submenu_id
                 local current_routing_menu_item_count = 0
                 for _, zone in ipairs(self.routing_zones) do
@@ -701,19 +754,6 @@ function TROOPCOMMAND:BuildCommandAndControlMenu(c2_client, options)
                         nil)
                 end
             end
-            missionCommands.addCommandForGroup(
-                c2_client.group_id,
-                "Advance toward nearest enemy",
-                troop_menu_item_id,
-                function()
-                    local results = __troopship.utils.moveGroupToNearestEnemyPosition(troop.moose_group, troop.maximum_search_distance)
-                    if results ~= nil then
-                        trigger.action.outTextForCoalition(c2_client.coalition, string.format("%s: moving to engage enemy at: %s", troop.troop_name, __troopship.utils.composeLLDDM(results.point)), 2 )
-                    else
-                        trigger.action.outTextForGroup(c2_client.group_id, string.format("%s: no enemy detected in vicinity!", troop.troop_name), 2)
-                    end
-                end,
-                nil)
             local smoke_submenu_id = missionCommands.addSubMenuForGroup(c2_client.group_id, "Smoke", troop_menu_item_id)
             missionCommands.addCommandForGroup(
                 c2_client.group_id,
@@ -1165,9 +1205,17 @@ function __troopship.TROOPSHIP:RebuildUnloadMenu()
                 if not self.is_disable_general_unload then
                     local item = missionCommands.addCommandForGroup(
                         self.group_id,
-                        "Here",
+                        "Here, to advance to enemy",
                         deploy_item_parent_menu_id,
-                        function() self:UnloadTroops(troop, {}) end,
+                        function() self:UnloadTroops(troop, {is_advance_to_enemy=true}) end,
+                        nil)
+                end
+                if not self.is_disable_general_unload then
+                    local item = missionCommands.addCommandForGroup(
+                        self.group_id,
+                        "Here, to hold position",
+                        deploy_item_parent_menu_id,
+                        function() self:UnloadTroops(troop, {is_hold_position=true}) end,
                         nil)
                 end
                 for i2, deploy_route_to_zone in ipairs(self.deploy_route_to_zones) do
@@ -1249,8 +1297,10 @@ function __troopship.TROOPSHIP:LoadTroops(troop)
 end
 
 -- unload a group
-function __troopship.TROOPSHIP:UnloadTroops(troop, args)
-    local direct_to_zone = args["deploy_route_to_zone"] or nil
+function __troopship.TROOPSHIP:UnloadTroops(troop, options)
+    local direct_to_zone = options["deploy_route_to_zone"] or nil
+    local is_advance_to_enemy = options["advance_to_enemy"] or nil
+    local is_hold_position = options["is_hold_position"] or nil
     if self.moose_unit:InAir() then
         self:__loadmasterMessage("Cannot unload while we are not on the ground, sir!")
     else
@@ -1288,11 +1338,13 @@ function __troopship.TROOPSHIP:UnloadTroops(troop, args)
                             -- local target_coord = deploy_route_to_zone:GetRandomCoordinate()
                             trigger.action.outTextForCoalition(self.coalition, string.format("%s: Moving to %s", troop.troop_name, direct_to_zone.display_name), 2 )
                             self.troop_command:SendGroupToZone(troop, direct_to_zone)
-                        else
+                        elseif is_advance_to_enemy then
                             local results = __troopship.utils.moveGroupToNearestEnemyPosition(troop.moose_group, troop.maximum_search_distance)
                             if results ~= nil then
                                 trigger.action.outTextForCoalition(self.coalition, string.format("%s: Moving to engage enemy at: %s", troop.troop_name, __troopship.utils.composeLLDDM(results.point)), 2 )
                             end
+                        elseif is_hold_position then
+                            moose_group:TaskHold()
                         end
                         local new_load = {}
                         local new_load_cost = 0

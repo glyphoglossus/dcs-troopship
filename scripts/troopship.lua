@@ -134,24 +134,26 @@ function __troopship.utils.nearestEnemyPosition(moose_unit, maximum_search_dista
         if dcs_group ~= nil then
             local focal_enemy_unit = nil
             for index, unit in ipairs(dcs_group:getUnits()) do
-                if unit:getLife() > 0 then
+                if unit:getLife() >= 1 then
                     focal_enemy_unit = unit
                     break
                 end
             end
             if focal_enemy_unit ~= nil then
-                local enemy_point = focal_enemy_unit:getPoint()
+                local enemy_point = focal_enemy_unit:getPoint() -- vec3
+                local enemy_position = focal_enemy_unit:getPosition() -- vec2
                 local enemy_dist = __troopship.utils.pointDistance(dcs_unit_point, enemy_point)
                 if enemy_dist < nearest_enemy_dist then
                     nearest_enemy_unit = focal_enemy_unit
                     nearest_enemy_point = enemy_point
+                    nearest_enemy_position = enemy_position
                     nearest_enemy_dist = enemy_dist
                 end
             end
         end
     end
     if nearest_enemy_unit ~= nil then
-        return {unit=nearest_enemy_unit, point=nearest_enemy_point, dist=nearest_enemy_dist}
+        return {unit=nearest_enemy_unit, point=nearest_enemy_point, position=nearest_enemy_position, dist=nearest_enemy_dist}
     else
         return nil
     end
@@ -162,7 +164,8 @@ function __troopship.utils.moveGroupToNearestEnemyPosition(moose_group, maximum_
     local moose_unit = moose_group:GetUnit(1)
     local results = __troopship.utils.nearestEnemyPosition(moose_unit, maximum_search_distance)
     if results ~= nil then
-        moose_group:RouteToVec3(results.point, 999)
+        -- moose_group:RouteToVec3(results.point, 999)
+        moose_group:TaskRouteToVec2({x=point.x, y=point.z}, 999)
     end
     return results
 end
@@ -429,12 +432,21 @@ end
 function TROOPCOMMAND:GetTroopStatus(troop)
     local dcs_group = troop.moose_group:GetDCSObject()
     category_counts = {}
+    ammo_states = {}
     for index, unit in pairs(dcs_group:getUnits()) do
         local type_name = unit:getTypeName()
         if not category_counts[type_name] then
             category_counts[type_name] = 1
         else
             category_counts[type_name] = category_counts[type_name] + 1
+        end
+        for _, ammo_type_table in pairs(unit:getAmmo()) do
+            local key = ammo_type_table.desc.displayName
+            if not ammo_states[key] then
+                ammo_states[key] = ammo_type_table.count
+            else
+                ammo_states[key] = ammo_states[key] + ammo_type_table.count
+            end
         end
     end
     local composition_table = {}
@@ -450,11 +462,17 @@ function TROOPCOMMAND:GetTroopStatus(troop)
     elseif current_size < initial_size then
         composition_summary_with_kia = string.format("%s, and %s KIA", composition_summary, initial_size-current_size)
     end
+    local ammo_desc_table = {}
+    for key, count in pairs(ammo_states) do
+        ammo_desc_table[1+#ammo_desc_table] = string.format("%s x %s", count, key)
+    end
+    ammo_desc = table.concat(ammo_desc_table, ", ")
     return {
         composition_summary=composition_summary,
         composition_summary_with_kia=composition_summary_with_kia,
         initial_size=initial_size,
         current_size=current_size,
+        ammo_desc=ammo_desc,
     }
 end
 
@@ -710,7 +728,8 @@ function TROOPCOMMAND:BuildCommandAndControlMenu(c2_client, options)
                                     point.x = point.x + math.floor(distance * 1000)
                                     point.z = point.z - math.floor(distance * 1000)
                                 end
-                                troop.moose_group:RouteToVec3(point, 999)
+                                -- troop.moose_group:RouteToVec3(point, 999)
+                                troop.moose_group:TaskRouteToVec2({x=point.x, y=point.z}, 999, "Vee")
                                 trigger.action.outTextForCoalition(c2_client.coalition, string.format("%s: moving %s for %s clicks to %s!", troop.troop_name, direction, distance, __troopship.utils.composeLLDDM(point)), 2 )
                             end
                         end,
@@ -831,6 +850,16 @@ function TROOPCOMMAND:BuildCommandAndControlMenu(c2_client, options)
                 function()
                     local troop_status = self:GetTroopStatus(troop)
                     local message = string.format("%s: %s", troop.troop_name, troop_status.composition_summary_with_kia)
+                    trigger.action.outTextForGroup(c2_client.group_id, message, 5, false)
+                end,
+                nil)
+            missionCommands.addCommandForGroup(
+                c2_client.group_id,
+                "Ammo",
+                report_submenu_id,
+                function()
+                    local troop_status = self:GetTroopStatus(troop)
+                    local message = string.format("%s: %s", troop.troop_name, troop_status.ammo_desc)
                     trigger.action.outTextForGroup(c2_client.group_id, message, 5, false)
                 end,
                 nil)

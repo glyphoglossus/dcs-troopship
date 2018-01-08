@@ -165,7 +165,7 @@ function __troopship.utils.moveGroupToNearestEnemyPosition(moose_group, maximum_
     local results = __troopship.utils.nearestEnemyPosition(moose_unit, maximum_search_distance)
     if results ~= nil then
         -- moose_group:RouteToVec3(results.point, 999)
-        moose_group:TaskRouteToVec2({x=point.x, y=point.z}, 999)
+        moose_group:TaskRouteToVec2({x=results.point.x, y=results.point.z}, 999, "Vee")
     end
     return results
 end

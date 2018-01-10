@@ -48,8 +48,9 @@ troop_command1:RegisterRoutingZoneNames({
     "SW",
 })
 -- You can also register navigation/routing zones singly, instead of a table as
--- above.
-troop_command1:RegisterRoutingZoneName("SE")
+-- above. In addition, you can specify an alias under which to display the zone
+-- name.
+troop_command1:RegisterRoutingZoneName("SE", "SE Quadrant")
 
 -- Register the groups that will consitute troops under this command.
 -- The names that you use here must correspond to groups created in the mission

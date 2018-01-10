@@ -35,20 +35,20 @@ function __troopship.utils.isEmpty(t)
     end
 end
 
-function __troopship.utils.getValidatedZoneFromName(zone_name, default)
+function __troopship.utils.getValidatedZoneFromName(zone_name, display_name)
     if zone_name == nil then
-        return default
+        return nil
     end
-    -- local z = trigger.misc.getZone(zone_name)
-    -- if not z then
-    --     return default
-    -- end
     local ok, zone = pcall(function() return ZONE:New(zone_name) end)
     if ok then
-        zone.display_name = zone:GetName()
+        if display_name == nil then
+            zone.display_name = zone:GetName()
+        else
+            zone.display_name = display_name
+        end
         return zone
     else
-        return default
+        return nil
     end
 end
 
@@ -368,10 +368,14 @@ end
 -- Zone Registration/Management --
 
 -- Register routing/waypoint zones
-function TROOPCOMMAND:RegisterRoutingZoneNames(zone_names)
+function TROOPCOMMAND:RegisterRoutingZoneNames(zone_names, display_names)
     if __troopship.utils.isEmpty(zone_names) then return end
-    for _, zone_name in pairs(zone_names) do
-        local zone = __troopship.utils.getValidatedZoneFromName(zone_name)
+    for idx, zone_name in ipairs(zone_names) do
+        local display_name = nil
+        if display_names ~= nil then
+            display_name = display_names[idx]
+        end
+        local zone = __troopship.utils.getValidatedZoneFromName(zone_name, display_name)
         if zone ~= nil then
             self.routing_zones[#self.routing_zones+1] = zone
         end
@@ -381,8 +385,17 @@ function TROOPCOMMAND:RegisterRoutingZoneNames(zone_names)
     end
 end
 
-function TROOPCOMMAND:RegisterRoutingZoneName(zone_name)
-    return self:RegisterRoutingZoneNames({zone_name})
+function TROOPCOMMAND:RegisterRoutingZoneName(zone_name, display_name)
+    local zone = __troopship.utils.getValidatedZoneFromName(zone_name, display_name)
+    if zone ~= nil then
+        self.routing_zones[#self.routing_zones+1] = zone
+    end
+    if display_name == nil then
+        display_names = nil
+    else
+        display_names = {display_name}
+    end
+    return self:RegisterRoutingZoneNames({zone_name}, display_names)
 end
 
 
@@ -916,8 +929,10 @@ function TROOPCOMMAND:SendGroupToZone(troop, zone)
             nil,
             timer.getTime() + 1)
     end
-    local target_coord = zone:GetCoordinate()
-    troop.moose_group:RouteGroundTo(target_coord, troop.movement_speed, troop.movement_formation, 1)
+    local target_coord = zone:GetVec2()
+    -- troop.moose_group:RouteGroundTo(target_coord, troop.movement_speed, troop.movement_formation, 1)
+    -- troop.moose_group:TaskRouteToVec2({x=x, y=y}, troop.movement_speed, troop.movement_formation)
+    troop.moose_group:TaskRouteToVec2(target_coord, troop.movement_speed, troop.movement_formation)
 end
 
 --------------------------------------------------------------------------------
@@ -943,10 +958,6 @@ function __troopship.TROOPSHIP.new(unit_name, troop_command, troopship_options)
     self.verbosity = troopship_options["verbosity"] or 3
     self.loadmaster_name = troopship_options["loadmaster_name"] or "Loadmaster"
     self.pickup_radius = troopship_options["pickup_radius"] or 100
-    -- self.deploy_route_to_zone_names = troopship_options["deploy_route_to_zone_names"] or nil
-    -- if self.deploy_route_to_zone_names then
-    --     self.deploy_route_to_zones = __troopship.utils.getValidatedZonesFromNames(self.deploy_route_to_zone_names, nil)
-    -- end
     if troopship_options["is_disable_deploy_to_zone_unload"] ~= nil then
         self.is_disable_deploy_to_zone_unload = troopship_options["is_disable_deploy_to_zone_unload"]
     end

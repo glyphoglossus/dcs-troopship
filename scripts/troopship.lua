@@ -165,7 +165,11 @@ function __troopship.utils.moveGroupToNearestEnemyPosition(moose_group, maximum_
     local results = __troopship.utils.nearestEnemyPosition(moose_unit, maximum_search_distance)
     if results ~= nil then
         -- moose_group:RouteToVec3(results.point, 999)
-        moose_group:TaskRouteToVec2({x=results.point.x, y=results.point.z}, 999, "Vee")
+        moose_group:OptionAlarmStateAuto()
+        -- moose_group:GetDCSObject():setOption(
+        --     AI.Option.Ground.id.ALARM_STATE,
+        --     AI.Option.Ground.val.ALARM_STATE.AUTO )
+        moose_group:TaskRouteToVec2({x=results.point.x, y=results.point.z}, 999, "Off road")
     end
     return results
 end
@@ -517,7 +521,7 @@ function TROOPCOMMAND:__registerGroupAsTroop(moose_group, troop_options)
             deploy_route_to_zone=deploy_route_to_zone,
             deploy_route_to_zone_name=deploy_route_to_zone_name,
             movement_speed=troop_options["movement_speed"] or 999,
-            movement_formation=troop_options["movement_formation"] or "Vee",
+            movement_formation=troop_options["movement_formation"] or "Off road",
             maximum_search_distance=troop_options["maximum_search_distance"] or 2000, -- max distance that troops search for enemy
             is_transportable=is_transportable,
             is_commandable=is_commandable,
@@ -729,7 +733,7 @@ function TROOPCOMMAND:BuildCommandAndControlMenu(c2_client, options)
                                     point.z = point.z - math.floor(distance * 1000)
                                 end
                                 -- troop.moose_group:RouteToVec3(point, 999)
-                                troop.moose_group:TaskRouteToVec2({x=point.x, y=point.z}, 999, "Vee")
+                                troop.moose_group:TaskRouteToVec2({x=point.x, y=point.z}, 999, "Off road")
                                 trigger.action.outTextForCoalition(c2_client.coalition, string.format("%s: moving %s for %s clicks to %s!", troop.troop_name, direction, distance, __troopship.utils.composeLLDDM(point)), 2 )
                             end
                         end,
@@ -861,6 +865,35 @@ function TROOPCOMMAND:BuildCommandAndControlMenu(c2_client, options)
                     local troop_status = self:GetTroopStatus(troop)
                     local message = string.format("%s: %s", troop.troop_name, troop_status.ammo_desc)
                     trigger.action.outTextForGroup(c2_client.group_id, message, 5, false)
+                end,
+                nil)
+            local options_submenu_id = missionCommands.addSubMenuForGroup(c2_client.group_id, "Set", troop_menu_item_id)
+            local alarm_state_submenu_id = missionCommands.addSubMenuForGroup(c2_client.group_id, "Alarm state", options_submenu_id)
+            missionCommands.addCommandForGroup(
+                c2_client.group_id,
+                "Auto",
+                alarm_state_submenu_id,
+                function()
+                    troop.moose_group:OptionAlarmStateAuto()
+                    trigger.action.outTextForGroup(c2_client.group_id, string.format("%s: Alarm state standard", troop.troop_name), 1, false)
+                end,
+                nil)
+            missionCommands.addCommandForGroup(
+                c2_client.group_id,
+                "Red",
+                alarm_state_submenu_id,
+                function()
+                    troop.moose_group:OptionAlarmStateRed()
+                    trigger.action.outTextForGroup(c2_client.group_id, string.format("%s: Alarm state RED!", troop.troop_name), 1, false)
+                end,
+                nil)
+            missionCommands.addCommandForGroup(
+                c2_client.group_id,
+                "Green",
+                alarm_state_submenu_id,
+                function()
+                    troop.moose_group:OptionAlarmStateGreen()
+                    trigger.action.outTextForGroup(c2_client.group_id, string.format("%s: Alarm state green", troop.troop_name), 1, false)
                 end,
                 nil)
         end

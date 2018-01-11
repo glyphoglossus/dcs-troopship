@@ -169,7 +169,8 @@ function __troopship.utils.moveGroupToNearestEnemyPosition(moose_group, maximum_
         -- moose_group:GetDCSObject():setOption(
         --     AI.Option.Ground.id.ALARM_STATE,
         --     AI.Option.Ground.val.ALARM_STATE.AUTO )
-        moose_group:TaskRouteToVec2({x=results.point.x, y=results.point.z}, 999, "Off road")
+        -- moose_group:TaskRouteToVec2({x=results.point.x, y=results.point.z}, 999, "Off road")
+        __troopship.utils.moveToPoint(moose_group, results.point, 999, troop.movement_formation)
     end
     return results
 end
@@ -199,7 +200,8 @@ function __troopship.utils.moveToPoint(group, move_to_point, speed, formation)
                 zone,
                 formation or "Cone",
                 180,
-                speed or 999)
+                speed or 999,
+                false)
         end, nil, timer.getTime() + 1)
 
     -- timer.scheduleFunction(
@@ -600,7 +602,7 @@ function TROOPCOMMAND:__registerGroupAsTroop(moose_group, troop_options)
             deploy_route_to_zone=deploy_route_to_zone,
             deploy_route_to_zone_name=deploy_route_to_zone_name,
             movement_speed=troop_options["movement_speed"] or 999,
-            movement_formation=troop_options["movement_formation"] or "Off road",
+            movement_formation=troop_options["movement_formation"] or "Cone",
             maximum_search_distance=troop_options["maximum_search_distance"] or 2000, -- max distance that troops search for enemy
             is_transportable=is_transportable,
             is_commandable=is_commandable,
@@ -830,7 +832,8 @@ function TROOPCOMMAND:BuildCommandAndControlMenu(c2_client, options)
                                     point.z = point.z - math.floor(distance * 1000)
                                 end
                                 -- troop.moose_group:RouteToVec3(point, 999)
-                                troop.moose_group:TaskRouteToVec2({x=point.x, y=point.z}, 999, "Off road")
+                                -- troop.moose_group:TaskRouteToVec2({x=point.x, y=point.z}, 999, "Off road")
+                                __troopship.utils.moveToPoint(troop.moose_group, point, 999, troop.movement_formation)
                                 trigger.action.outTextForCoalition(c2_client.coalition, string.format("%s: moving %s for %s clicks to %s!", troop.troop_name, direction, distance, __troopship.utils.composeLLDDM(point)), 2 )
                             end
                         end,
@@ -1014,7 +1017,7 @@ function TROOPCOMMAND:SendGroupToZone(troop, zone)
     --         timer.getTime() + 1)
     -- end
     local point = zone:GetVec3()
-    __troopship.utils.moveToPoint(troop.moose_group, point, 999, "Cone")
+    __troopship.utils.moveToPoint(troop.moose_group, point, 999, troop.movement_formation)
 end
 
 --------------------------------------------------------------------------------

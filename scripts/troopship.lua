@@ -194,14 +194,12 @@ function __troopship.utils.moveToPoint(group, move_to_point, speed, formation)
                 point = move_to_point, -- vec3
                 radius = 10,
             }
-            trigger.action.outText("RUNNING 3", 1)
             mist.groupToPoint(
                 group:GetName(),
                 zone,
                 formation or "Cone",
                 180,
                 speed or 999)
-            trigger.action.outText("executed", 1)
         end, nil, timer.getTime() + 1)
 
     -- timer.scheduleFunction(
@@ -251,44 +249,6 @@ function __troopship.utils.moveToPoint(group, move_to_point, speed, formation)
     --         return nil
     --     end, nil, timer.getTime() + 1)
 end
-
--- function __troopship.utils.moveToPoint(group, dest_point, speed, formation)
---     local unit = group:GetUnit(1):GetDCSObject()
---     local ControllablePoint = unit:getPoint()
---     local PointFrom = {}
---     PointFrom.x = ControllablePoint.x
---     PointFrom.y = ControllablePoint.y
---     PointFrom.type = "Turning Point"
---     PointFrom.action = formation or "Off road"
---     PointFrom.speed = 20 / 1.6
---     local PointTo = {}
---     PointTo.x = dest_point.x
---     PointTo.y = dest_point.y
---     PointTo.type = "Turning Point"
---     if formation then
---       PointTo.action = formation
---     else
---       PointTo.action = "Off road"
---     end
---     if speed then
---       PointTo.speed = speed
---     else
---       PointTo.speed = 20 / 1.6
---     end
---     local Points = { PointFrom, PointTo }
---     trigger.action.outText( string.format("Moving from (%s, %s) to (%s, %s)", PointFrom.x, PointFrom.y, PointTo.x, PointTo.y), 10)
---     local task = { id="Mission", params={route={points= Points,}, }, }
---     -- controller = group:GetDCSObject():getController()
---     -- controller:setTask(task)
---     controller = group:GetDCSObject():getController()
---     controller:setTask(task)
---     for uidx, unit in pairs(group:GetDCSObject():getUnits()) do
---         controller = unit:getController()
---         controller:setTask(task)
---     end
---     -- group:SetTask(task, 1)
---     trigger.action.outText("DONE!", 10)
--- end
 
 --------------------------------------------------------------------------------
 -- __troopship.DynamicTroopSpawner
@@ -1053,35 +1013,8 @@ function TROOPCOMMAND:SendGroupToZone(troop, zone)
     --         nil,
     --         timer.getTime() + 1)
     -- end
-    -- local target_coord = zone:GetCoordinate()
-    -- troop.moose_group:RouteGroundTo(target_coord, troop.movement_speed, troop.movement_formation, 1)
-    local target_coord = zone:GetVec2()
-    -- for k,v in pairs(target_coord) do
-    --     trigger.action.outText(string.format("%s = %s", k, v), 10)
-    -- end
-    -- troop.moose_group:TaskRouteToVec2({x=x, y=y}, troop.movement_speed, troop.movement_formation)
-    -- troop.moose_group:TaskRouteToVec2(target_coord, troop.movement_speed, troop.movement_formation)
-    -- local dcs_group = troop.moose_group:GetDCSObject()
-    -- for _, unit in pairs(dcs_group:getUnits()) do
-    -- for _, unit in pairs(troop.moose_group:GetUnits()) do
-        -- unit:TaskRouteToVec2(target_coord, troop.movement_speed, troop.movement_formation)
-    -- end
     local point = zone:GetVec3()
-    -- __troopship.utils.moveToPoint(troop.moose_group, target_coord, 999, "Cone")
     __troopship.utils.moveToPoint(troop.moose_group, point, 999, "Cone")
-    -- mist.groupToPoint(troop.moose_group:GetName(), zone:GetName(), "Cone", 180, 999)
-
-     -- vars = {
-     --    group = table group,
-     --    point = table point,
-     --    radius = number radius,
-     --    form = string form,
-     --    heading/headingDegrees = number/number heading/headingDegrees,
-     --    speed = number speed,
-     --    disableRoads = boolean disableRoads,
-     --    }
-    -- vars = {group=troop.moose_group:GetName(), point=zone:GetVec3(), disableRoads=true}
-    -- mist.groupToRandomPoint(vars)
 end
 
 --------------------------------------------------------------------------------

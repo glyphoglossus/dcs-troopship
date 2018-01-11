@@ -170,7 +170,7 @@ function __troopship.utils.moveGroupToNearestEnemyPosition(moose_group, maximum_
         --     AI.Option.Ground.id.ALARM_STATE,
         --     AI.Option.Ground.val.ALARM_STATE.AUTO )
         -- moose_group:TaskRouteToVec2({x=results.point.x, y=results.point.z}, 999, "Off road")
-        __troopship.utils.moveToPoint(moose_group, results.point, 999, troop.movement_formation)
+        __troopship.utils.moveToPoint(moose_group, results.point, 999, troop.movement_formation, nil)
     end
     return results
 end
@@ -288,12 +288,15 @@ end
 --      Mission Scripting Tools for Digital Combat Simulator
 --      Authors: Grimes (mrSkortch), Speed
 --      https://github.com/mrSkortch/MissionScriptingTools
-function __troopship.utils.moveToPoint(moose_group, move_to_point, speed, formation)
+function __troopship.utils.moveToPoint(moose_group, move_to_point, speed, formation, heading)
     local group = moose_group:GetDCSObject()
     if formation == nil then
         formation = "Cone"
     end
-    local heading = math.random()*2*math.pi
+    local heading = heading or math.random()*2*math.pi
+    if heading >= 2*math.pi then
+        heading = heading - 2*math.pi
+    end
     if speed == nil then
         speed = 14
     end
@@ -881,28 +884,36 @@ function TROOPCOMMAND:BuildCommandAndControlMenu(c2_client, options)
                                 if false then
                                 elseif direction == "North" then
                                     point.x = point.x + math.floor(distance * 1000)
+                                    heading = 0
                                 elseif direction == "Northeast" then
                                     point.x = point.x + math.floor(distance * 1000)
                                     point.z = point.z + math.floor(distance * 1000)
+                                    heading = math.pi * 0.25
                                 elseif direction == "East" then
                                     point.z = point.z + math.floor(distance * 1000)
+                                    heading = math.pi * 0.5
                                 elseif direction == "Southeast" then
                                     point.x = point.x - math.floor(distance * 1000)
                                     point.z = point.z + math.floor(distance * 1000)
+                                    heading = math.pi * 0.75
                                 elseif direction == "South" then
                                     point.x = point.x - math.floor(distance * 1000)
+                                    heading = math.pi
                                 elseif direction == "Southwest" then
                                     point.x = point.x - math.floor(distance * 1000)
                                     point.z = point.z - math.floor(distance * 1000)
+                                    heading = math.pi * 1.25
                                 elseif direction == "West" then
                                     point.z = point.z - math.floor(distance * 1000)
+                                    heading = math.pi * 1.5
                                 elseif direction == "Northwest" then
                                     point.x = point.x + math.floor(distance * 1000)
                                     point.z = point.z - math.floor(distance * 1000)
+                                    heading = math.pi * 1.75
                                 end
                                 -- troop.moose_group:RouteToVec3(point, 999)
                                 -- troop.moose_group:TaskRouteToVec2({x=point.x, y=point.z}, 999, "Off road")
-                                __troopship.utils.moveToPoint(troop.moose_group, point, 999, troop.movement_formation)
+                                __troopship.utils.moveToPoint(troop.moose_group, point, 999, troop.movement_formation, heading)
                                 trigger.action.outTextForCoalition(c2_client.coalition, string.format("%s: moving %s for %s clicks to %s!", troop.troop_name, direction, distance, __troopship.utils.composeLLDDM(point)), 2 )
                             end
                         end,
@@ -1057,11 +1068,42 @@ function TROOPCOMMAND:BuildCommandAndControlMenu(c2_client, options)
                         local point = __troopship.utils.getLeadPos(dcs_group)
                         point.x = point.x + 50
                         point.z = point.z + 50
-                        __troopship.utils.moveToPoint(troop.moose_group, point, nil, formation)
-                        -- point.x = point.x - 50
-                        -- point.z = point.z - 50
-                        -- __troopship.utils.moveToPoint(troop.moose_group, point, nil, formation)
+                        __troopship.utils.moveToPoint(troop.moose_group, point, nil, formation, nil)
                         trigger.action.outTextForGroup(c2_client.group_id, string.format("%s: %s formation", troop.troop_name, formation), 1, false)
+                    end,
+                    nil)
+            end
+            local heading_submenu_id = missionCommands.addSubMenuForGroup(c2_client.group_id, "Heading", options_submenu_id)
+            for _, direction in ipairs({"North", "Northeast", "East", "Southeast", "South", "Southwest", "West", "Northwest"}) do
+                if false then
+                elseif direction == "North" then
+                    heading = 0
+                elseif direction == "Northeast" then
+                    heading = math.pi * 0.25
+                elseif direction == "East" then
+                    heading = math.pi * 0.5
+                elseif direction == "Southeast" then
+                    heading = math.pi * 0.75
+                elseif direction == "South" then
+                    heading = math.pi
+                elseif direction == "Southwest" then
+                    heading = math.pi * 1.25
+                elseif direction == "West" then
+                    heading = math.pi * 1.5
+                elseif direction == "Northwest" then
+                    heading = math.pi * 1.75
+                end
+                missionCommands.addCommandForGroup(
+                    c2_client.group_id,
+                    direction,
+                    heading_submenu_id,
+                    function()
+                        local dcs_group = troop.moose_group:GetDCSObject()
+                        local point = __troopship.utils.getLeadPos(dcs_group)
+                        point.x = point.x + 50
+                        point.z = point.z + 50
+                        __troopship.utils.moveToPoint(troop.moose_group, point, nil, nil, heading)
+                        trigger.action.outTextForGroup(c2_client.group_id, string.format("%s: turning %s", troop.troop_name, direction), 1, false)
                     end,
                     nil)
             end
@@ -1114,7 +1156,7 @@ function TROOPCOMMAND:SendGroupToZone(troop, zone)
     --         timer.getTime() + 1)
     -- end
     local point = zone:GetVec3()
-    __troopship.utils.moveToPoint(troop.moose_group, point, 999, troop.movement_formation)
+    __troopship.utils.moveToPoint(troop.moose_group, point, 999, troop.movement_formation, nil)
 end
 
 --------------------------------------------------------------------------------

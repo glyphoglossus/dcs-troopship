@@ -182,6 +182,114 @@ function __troopship.utils.composeLLDDM(point)
     -- UTILS.tostringLL( lat, lon, LL_Accuracy, false ) -- in DDM
 end
 
+function __troopship.utils.moveToPoint(group, move_to_point, speed, formation)
+
+    timer.scheduleFunction(
+        function(args, time)
+            -- TriggerZone = {
+            --  point = Vec3,
+            --  radius = Distance
+            -- }
+            local zone = {
+                point = move_to_point, -- vec3
+                radius = 10,
+            }
+            trigger.action.outText("RUNNING 3", 1)
+            mist.groupToPoint(
+                group:GetName(),
+                zone,
+                formation or "Cone",
+                180,
+                speed or 999)
+            trigger.action.outText("executed", 1)
+        end, nil, timer.getTime() + 1)
+
+    -- timer.scheduleFunction(
+    --     function(args, time)
+    --         -- local point = {x=move_to_point.x, z=move_to_point.y}
+    --         vars = {
+    --             group=group:GetName(),
+    --             point=move_to_point, -- needs be Vec3 point
+    --             -- disableRoads=true
+    --             }
+    --         mist.groupToRandomPoint(vars)
+    --         trigger.action.outText("DONE!", 10)
+    --     end, nil, timer.getTime() + 1)
+
+    -- timer.scheduleFunction(
+    --     function(args, time)
+    --         local dest_point = {}
+    --         dest_point.x = move_to_point.x
+    --         dest_point.y = move_to_point.y
+    --         dest_point.type = "Turning Point"
+    --         -- dest_point.type = "Cone"
+    --         dest_point.action = formation or "Cone"
+    --         if speed then
+    --         dest_point.speed = speed
+    --         else
+    --         dest_point.speed = 20 / 1.6
+    --         end
+    --         for uidx, unit in ipairs(group:GetDCSObject():getUnits()) do
+    --             local unit = group:GetUnit(1):GetDCSObject()
+    --             local controllable_point = unit:getPoint()
+    --             local origin_point = {}
+    --             origin_point.x = controllable_point.x
+    --             origin_point.y = controllable_point.y
+    --             origin_point.type = "Turning Point"
+    --             -- origin_point.type = "Cone"
+    --             origin_point.action = formation or "Cone"
+    --             origin_point.speed = 20 / 1.6
+    --             local objective_points = { origin_point, dest_point }
+    --             local task = {id="Mission",params={route={points=objective_points,},},}
+    --             -- local grpc = group:GetDCSObject():getController()
+    --             -- grpc:setTask(task)
+    --             -- break
+    --             local controller = unit:getController()
+    --             controller:setTask(task)
+    --         end
+    --         trigger.action.outText("DONE!", 10)
+    --         return nil
+    --     end, nil, timer.getTime() + 1)
+end
+
+-- function __troopship.utils.moveToPoint(group, dest_point, speed, formation)
+--     local unit = group:GetUnit(1):GetDCSObject()
+--     local ControllablePoint = unit:getPoint()
+--     local PointFrom = {}
+--     PointFrom.x = ControllablePoint.x
+--     PointFrom.y = ControllablePoint.y
+--     PointFrom.type = "Turning Point"
+--     PointFrom.action = formation or "Off road"
+--     PointFrom.speed = 20 / 1.6
+--     local PointTo = {}
+--     PointTo.x = dest_point.x
+--     PointTo.y = dest_point.y
+--     PointTo.type = "Turning Point"
+--     if formation then
+--       PointTo.action = formation
+--     else
+--       PointTo.action = "Off road"
+--     end
+--     if speed then
+--       PointTo.speed = speed
+--     else
+--       PointTo.speed = 20 / 1.6
+--     end
+--     local Points = { PointFrom, PointTo }
+--     trigger.action.outText( string.format("Moving from (%s, %s) to (%s, %s)", PointFrom.x, PointFrom.y, PointTo.x, PointTo.y), 10)
+--     local task = { id="Mission", params={route={points= Points,}, }, }
+--     -- controller = group:GetDCSObject():getController()
+--     -- controller:setTask(task)
+--     controller = group:GetDCSObject():getController()
+--     controller:setTask(task)
+--     for uidx, unit in pairs(group:GetDCSObject():getUnits()) do
+--         controller = unit:getController()
+--         controller:setTask(task)
+--     end
+--     -- group:SetTask(task, 1)
+--     trigger.action.outText("DONE!", 10)
+-- end
+
 --------------------------------------------------------------------------------
 -- __troopship.DynamicTroopSpawner
 
@@ -279,6 +387,7 @@ function TROOPCOMMAND.new(name, coalition, options)
     else
         self.troop_navigation_feedback_verbosity = 1
     end
+    self.troop_name_id_map = {}
     self.deployed_troops = {}
     self.withdrawn_troops = {}
     self.num_deployed_troops = 0
@@ -387,9 +496,6 @@ end
 
 function TROOPCOMMAND:RegisterRoutingZoneName(zone_name, display_name)
     local zone = __troopship.utils.getValidatedZoneFromName(zone_name, display_name)
-    if zone ~= nil then
-        self.routing_zones[#self.routing_zones+1] = zone
-    end
     if display_name == nil then
         display_names = nil
     else
@@ -539,6 +645,7 @@ function TROOPCOMMAND:__registerGroupAsTroop(moose_group, troop_options)
             is_transportable=is_transportable,
             is_commandable=is_commandable,
         }
+    self.troop_name_id_map[troop_name] = troop_id
     self.num_deployed_troops = self.num_deployed_troops + 1
     self:UpdateCommandAndControlClientMenus()
     return self.deployed_troops[troop_id]
@@ -549,8 +656,25 @@ function TROOPCOMMAND:PurgeTroop(troop)
     if troop ~= nil then
         self.deployed_troops[troop.troop_id] = nil
         self.withdrawn_troops[troop.troop_id] = nil
+        self.troop_name_id_map[troop.troop_name] = nil
     end
 end
+
+-- Find troop
+function TROOPCOMMAND:GetTroopByName(troop_name, is_include_withdraw_troops)
+    local troop_id = self.troop_name_id_map[troop_name]
+    if troop_id == nil then
+        return nil
+    end
+    local troop = self.deployed_troops[troop_id]
+    if troop ~= nil then
+        return troop
+    end
+    if is_include_withdraw_troops then
+        return self.withdrawn_troops[troop_id]
+    end
+end
+
 
 -- Remove a group from availability
 function TROOPCOMMAND:WithdrawTroop(troop_id)
@@ -914,25 +1038,50 @@ function TROOPCOMMAND:BuildCommandAndControlMenu(c2_client, options)
 end
 
 function TROOPCOMMAND:SendGroupToZone(troop, zone)
-    if self.troop_navigation_feedback_verbosity > 0 then
-        timer.scheduleFunction(
-            function(args, time)
-                if not troop.moose_group:IsAlive() then
-                    return nil
-                elseif troop.moose_group:IsNotInZone(zone) then
-                    return time + 20
-                else
-                    trigger.action.outTextForCoalition(troop.coalition, string.format("%s: Arrived at %s", troop.troop_name, zone.display_name), 4)
-                    return nil
-                end
-            end,
-            nil,
-            timer.getTime() + 1)
-    end
-    local target_coord = zone:GetVec2()
+    -- if self.troop_navigation_feedback_verbosity > 0 then
+    --     timer.scheduleFunction(
+    --         function(args, time)
+    --             if not troop.moose_group:IsAlive() then
+    --                 return nil
+    --             elseif troop.moose_group:IsNotInZone(zone) then
+    --                 return time + 20
+    --             else
+    --                 trigger.action.outTextForCoalition(troop.coalition, string.format("%s: Arrived at %s", troop.troop_name, zone.display_name), 4)
+    --                 return nil
+    --             end
+    --         end,
+    --         nil,
+    --         timer.getTime() + 1)
+    -- end
+    -- local target_coord = zone:GetCoordinate()
     -- troop.moose_group:RouteGroundTo(target_coord, troop.movement_speed, troop.movement_formation, 1)
+    local target_coord = zone:GetVec2()
+    -- for k,v in pairs(target_coord) do
+    --     trigger.action.outText(string.format("%s = %s", k, v), 10)
+    -- end
     -- troop.moose_group:TaskRouteToVec2({x=x, y=y}, troop.movement_speed, troop.movement_formation)
-    troop.moose_group:TaskRouteToVec2(target_coord, troop.movement_speed, troop.movement_formation)
+    -- troop.moose_group:TaskRouteToVec2(target_coord, troop.movement_speed, troop.movement_formation)
+    -- local dcs_group = troop.moose_group:GetDCSObject()
+    -- for _, unit in pairs(dcs_group:getUnits()) do
+    -- for _, unit in pairs(troop.moose_group:GetUnits()) do
+        -- unit:TaskRouteToVec2(target_coord, troop.movement_speed, troop.movement_formation)
+    -- end
+    local point = zone:GetVec3()
+    -- __troopship.utils.moveToPoint(troop.moose_group, target_coord, 999, "Cone")
+    __troopship.utils.moveToPoint(troop.moose_group, point, 999, "Cone")
+    -- mist.groupToPoint(troop.moose_group:GetName(), zone:GetName(), "Cone", 180, 999)
+
+     -- vars = {
+     --    group = table group,
+     --    point = table point,
+     --    radius = number radius,
+     --    form = string form,
+     --    heading/headingDegrees = number/number heading/headingDegrees,
+     --    speed = number speed,
+     --    disableRoads = boolean disableRoads,
+     --    }
+    -- vars = {group=troop.moose_group:GetName(), point=zone:GetVec3(), disableRoads=true}
+    -- mist.groupToRandomPoint(vars)
 end
 
 --------------------------------------------------------------------------------

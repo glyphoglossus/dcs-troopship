@@ -1055,7 +1055,12 @@ function TROOPCOMMAND:BuildCommandAndControlMenu(c2_client, options)
                     function()
                         local dcs_group = troop.moose_group:GetDCSObject()
                         local point = __troopship.utils.getLeadPos(dcs_group)
+                        point.x = point.x + 50
+                        point.z = point.z + 50
                         __troopship.utils.moveToPoint(troop.moose_group, point, nil, formation)
+                        -- point.x = point.x - 50
+                        -- point.z = point.z - 50
+                        -- __troopship.utils.moveToPoint(troop.moose_group, point, nil, formation)
                         trigger.action.outTextForGroup(c2_client.group_id, string.format("%s: %s formation", troop.troop_name, formation), 1, false)
                     end,
                     nil)

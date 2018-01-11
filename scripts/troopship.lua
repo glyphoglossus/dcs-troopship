@@ -208,7 +208,37 @@ function mist_move(vars)
     return
 end
 
-function __troopship.utils.moveToPoint(group, move_to_point, speed, formation)
+function __troopship.utils.moveToPoint(moose_group, move_to_point, speed, formation)
+    local group = moose_group:GetDCSObject()
+    if formation == nil then
+        formation = "Cone"
+    end
+    local heading = math.random()*2*math.pi
+    if speed == nil then
+        speed = 20/1.6
+    end
+    local path = {}
+    local offset = {}
+    local posStart = mist.getLeadPos(group)
+    offset.x = mist.utils.round(math.sin(heading - (math.pi/2)) * 50 + move_to_point.x, 3)
+    offset.z = mist.utils.round(math.cos(heading + (math.pi/2)) * 50 + move_to_point.z, 3)
+    path[#path + 1] = mist.ground.buildWP(posStart, formation, speed)
+    path[#path + 1] = mist.ground.buildWP({x = posStart.x + 25, z = posStart.z + 25}, formation, speed)
+    path[#path + 1] = mist.ground.buildWP(offset, formation, speed)
+    path[#path + 1] = mist.ground.buildWP(move_to_point, formation, speed)
+    local mission = {
+        id = "Mission",
+        params = {
+            route = {
+                points = path,
+            },
+        },
+    }
+	local controller = group:getController()
+    timer.scheduleFunction( -- deal with Controller requiring a few seconds to start
+        function(args, time)
+            controller:setTask(mission)
+        end, nil, timer.getTime() + 1)
 
     -- timer.scheduleFunction(
     --     function(args, time)
@@ -220,26 +250,14 @@ function __troopship.utils.moveToPoint(group, move_to_point, speed, formation)
     --             point = move_to_point, -- vec3
     --             radius = 10,
     --         }
-    --         mist.groupToPoint(
-    --             group:GetName(),
+    --         mist.moose_groupToPoint(
+    --             moose_group:GetName(),
     --             zone,
     --             formation or "Cone",
     --             180,
     --             speed or 999,
     --             true)
     --     end, nil, timer.getTime() + 1)
-
-    timer.scheduleFunction(
-        function(args, time)
-            -- local point = {x=move_to_point.x, z=move_to_point.y}
-            vars = {
-                group=group:GetName(),
-                point=move_to_point, -- needs be Vec3 point
-		        form=formation or "Cone",
-		        speed=speed,
-                }
-            mist_move(vars)
-        end, nil, timer.getTime() + 1)
 
     -- timer.scheduleFunction(
     --     function(args, time)
@@ -254,8 +272,8 @@ function __troopship.utils.moveToPoint(group, move_to_point, speed, formation)
     --         else
     --         dest_point.speed = 20 / 1.6
     --         end
-    --         for uidx, unit in ipairs(group:GetDCSObject():getUnits()) do
-    --             local unit = group:GetUnit(1):GetDCSObject()
+    --         for uidx, unit in ipairs(moose_group:GetDCSObject():getUnits()) do
+    --             local unit = moose_group:GetUnit(1):GetDCSObject()
     --             local controllable_point = unit:getPoint()
     --             local origin_point = {}
     --             origin_point.x = controllable_point.x
@@ -266,7 +284,7 @@ function __troopship.utils.moveToPoint(group, move_to_point, speed, formation)
     --             origin_point.speed = 20 / 1.6
     --             local objective_points = { origin_point, dest_point }
     --             local task = {id="Mission",params={route={points=objective_points,},},}
-    --             -- local grpc = group:GetDCSObject():getController()
+    --             -- local grpc = moose_group:GetDCSObject():getController()
     --             -- grpc:setTask(task)
     --             -- break
     --             local controller = unit:getController()

@@ -183,31 +183,97 @@ function __troopship.utils.composeLLDDM(point)
     -- UTILS.tostringLL( lat, lon, LL_Accuracy, false ) -- in DDM
 end
 
-
-function mist_move(vars)
-    local group = vars.group --Required
-    local point = vars.point --required
-    local radius = vars.radius or 0
-    local form = vars.form or 'Cone'
-    local heading = vars.heading or math.random()*2*math.pi
-    local speed = vars.speed or mist.utils.kmphToMps(20)
-    local path = {}
-    if heading >= 2*math.pi then
-        heading = heading - 2*math.pi
+-- From "MIST":
+--      Mission Scripting Tools for Digital Combat Simulator
+--      Authors: Grimes (mrSkortch), Speed
+--      https://github.com/mrSkortch/MissionScriptingTools
+function __troopship.utils.buildGroundWP(point, overRideForm, overRideSpeed)
+    local wp = {}
+    wp.x = point.x
+    if point.z then
+        wp.y = point.z
+    else
+        wp.y = point.y
     end
-    local rndCoord = point
-    local offset = {}
-    local posStart = mist.getLeadPos(group)
-    offset.x = mist.utils.round(math.sin(heading - (math.pi/2)) * 50 + point.x, 3)
-    offset.z = mist.utils.round(math.cos(heading + (math.pi/2)) * 50 + point.z, 3)
-    path[#path + 1] = mist.ground.buildWP(posStart, form, speed)
-    path[#path + 1] = mist.ground.buildWP({x = posStart.x + 25, z = posStart.z + 25}, form, speed)
-    path[#path + 1] = mist.ground.buildWP(offset, form, speed)
-    path[#path + 1] = mist.ground.buildWP(point, form, speed)
-    mist.goRoute(group, path)
-    return
+    local formation, speed
+    if point.speed and not overRideSpeed then
+        wp.speed = point.speed
+    elseif type(overRideSpeed) == 'number' then
+        wp.speed = overRideSpeed
+    else
+        wp.speed = 14
+    end
+    if point.formation and not overRideForm then
+        formation = point.formation
+    else
+        formation = overRideForm
+    end
+    if not formation then
+        wp.action = 'Cone'
+    else
+        formation = string.lower(formation)
+        if formation == 'off_road'
+                or formation == 'off road' then
+            wp.action = 'Off Road'
+        elseif formation == 'on_road'
+                or formation == 'on road' then
+            wp.action = 'On Road'
+        elseif formation == 'rank'
+                or formation == 'line_abrest' or formation == 'line abrest' or formation == 'lineabrest'
+                or formation == 'line_abreast' or formation == 'line abreast' or formation == 'lineabreast' then
+            wp.action = 'Rank'
+        elseif formation == 'cone' then
+            wp.action = 'Cone'
+        elseif formation == 'diamond' then
+            wp.action = 'Diamond'
+        elseif formation == 'vee' then
+            wp.action = 'Vee'
+        elseif formation == 'echelon_left'
+                or formation == 'echelon left'
+                or formation == 'echelonl' then
+            wp.action = 'EchelonL'
+        elseif formation == 'echelon_right'
+                or formation == 'echelon right'
+                or formation == 'echelonr' then
+            wp.action = 'EchelonR'
+        else
+            wp.action = 'Cone' -- if nothing matched
+        end
+    end
+    wp.type = 'Turning Point'
+    return wp
 end
 
+-- From "MIST":
+--      Mission Scripting Tools for Digital Combat Simulator
+--      Authors: Grimes (mrSkortch), Speed
+--      https://github.com/mrSkortch/MissionScriptingTools
+function __troopship.utils.getLeadPos(group)
+    if type(group) == 'string' then -- group name
+        group = Group.getByName(group)
+    end
+
+    local units = group:getUnits()
+
+    local leader = units[1]
+    if not Unit.isExist(leader) then	-- SHOULD be good, but if there is a bug, this code future-proofs it then.
+        local lowestInd = math.huge
+        for ind, unit in pairs(units) do
+            if Unit.isExist(unit) and ind < lowestInd then
+                lowestInd = ind
+                return unit:getPosition().p
+            end
+        end
+    end
+    if leader and Unit.isExist(leader) then	-- maybe a little too paranoid now...
+        return leader:getPosition().p
+    end
+end
+
+-- Adapted from "MIST":
+--      Mission Scripting Tools for Digital Combat Simulator
+--      Authors: Grimes (mrSkortch), Speed
+--      https://github.com/mrSkortch/MissionScriptingTools
 function __troopship.utils.moveToPoint(moose_group, move_to_point, speed, formation)
     local group = moose_group:GetDCSObject()
     if formation == nil then
@@ -215,17 +281,17 @@ function __troopship.utils.moveToPoint(moose_group, move_to_point, speed, format
     end
     local heading = math.random()*2*math.pi
     if speed == nil then
-        speed = 20/1.6
+        speed = 14
     end
     local path = {}
     local offset = {}
-    local posStart = mist.getLeadPos(group)
-    offset.x = mist.utils.round(math.sin(heading - (math.pi/2)) * 50 + move_to_point.x, 3)
-    offset.z = mist.utils.round(math.cos(heading + (math.pi/2)) * 50 + move_to_point.z, 3)
-    path[#path + 1] = mist.ground.buildWP(posStart, formation, speed)
-    path[#path + 1] = mist.ground.buildWP({x = posStart.x + 25, z = posStart.z + 25}, formation, speed)
-    path[#path + 1] = mist.ground.buildWP(offset, formation, speed)
-    path[#path + 1] = mist.ground.buildWP(move_to_point, formation, speed)
+    local posStart = __troopship.utils.getLeadPos(group)
+    offset.x = math.ceil(math.sin(heading - (math.pi/2)) * 50 + move_to_point.x, 3)
+    offset.z = math.ceil(math.cos(heading + (math.pi/2)) * 50 + move_to_point.z, 3)
+    path[#path + 1] = __troopship.utils.buildGroundWP(posStart, formation, speed)
+    path[#path + 1] = __troopship.utils.buildGroundWP({x = posStart.x + 25, z = posStart.z + 25}, formation, speed)
+    path[#path + 1] = __troopship.utils.buildGroundWP(offset, formation, speed)
+    path[#path + 1] = __troopship.utils.buildGroundWP(move_to_point, formation, speed)
     local mission = {
         id = "Mission",
         params = {
@@ -239,60 +305,6 @@ function __troopship.utils.moveToPoint(moose_group, move_to_point, speed, format
         function(args, time)
             controller:setTask(mission)
         end, nil, timer.getTime() + 1)
-
-    -- timer.scheduleFunction(
-    --     function(args, time)
-    --         -- TriggerZone = {
-    --         --  point = Vec3,
-    --         --  radius = Distance
-    --         -- }
-    --         local zone = {
-    --             point = move_to_point, -- vec3
-    --             radius = 10,
-    --         }
-    --         mist.moose_groupToPoint(
-    --             moose_group:GetName(),
-    --             zone,
-    --             formation or "Cone",
-    --             180,
-    --             speed or 999,
-    --             true)
-    --     end, nil, timer.getTime() + 1)
-
-    -- timer.scheduleFunction(
-    --     function(args, time)
-    --         local dest_point = {}
-    --         dest_point.x = move_to_point.x
-    --         dest_point.y = move_to_point.y
-    --         dest_point.type = "Turning Point"
-    --         -- dest_point.type = "Cone"
-    --         dest_point.action = formation or "Cone"
-    --         if speed then
-    --         dest_point.speed = speed
-    --         else
-    --         dest_point.speed = 20 / 1.6
-    --         end
-    --         for uidx, unit in ipairs(moose_group:GetDCSObject():getUnits()) do
-    --             local unit = moose_group:GetUnit(1):GetDCSObject()
-    --             local controllable_point = unit:getPoint()
-    --             local origin_point = {}
-    --             origin_point.x = controllable_point.x
-    --             origin_point.y = controllable_point.y
-    --             origin_point.type = "Turning Point"
-    --             -- origin_point.type = "Cone"
-    --             origin_point.action = formation or "Cone"
-    --             origin_point.speed = 20 / 1.6
-    --             local objective_points = { origin_point, dest_point }
-    --             local task = {id="Mission",params={route={points=objective_points,},},}
-    --             -- local grpc = moose_group:GetDCSObject():getController()
-    --             -- grpc:setTask(task)
-    --             -- break
-    --             local controller = unit:getController()
-    --             controller:setTask(task)
-    --         end
-    --         trigger.action.outText("DONE!", 10)
-    --         return nil
-    --     end, nil, timer.getTime() + 1)
 end
 
 --------------------------------------------------------------------------------

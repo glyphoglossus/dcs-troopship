@@ -212,32 +212,46 @@ function __troopship.utils.buildGroundWP(point, overRideForm, overRideSpeed)
         wp.action = 'Cone'
     else
         formation = string.lower(formation)
-        if formation == 'off_road'
-                or formation == 'off road' then
-            wp.action = 'Off Road'
-        elseif formation == 'on_road'
-                or formation == 'on road' then
-            wp.action = 'On Road'
-        elseif formation == 'rank'
-                or formation == 'line_abrest' or formation == 'line abrest' or formation == 'lineabrest'
-                or formation == 'line_abreast' or formation == 'line abreast' or formation == 'lineabreast' then
-            wp.action = 'Rank'
-        elseif formation == 'cone' then
-            wp.action = 'Cone'
-        elseif formation == 'diamond' then
-            wp.action = 'Diamond'
-        elseif formation == 'vee' then
-            wp.action = 'Vee'
-        elseif formation == 'echelon_left'
-                or formation == 'echelon left'
-                or formation == 'echelonl' then
-            wp.action = 'EchelonL'
-        elseif formation == 'echelon_right'
-                or formation == 'echelon right'
-                or formation == 'echelonr' then
-            wp.action = 'EchelonR'
+        if formation == "Off Road"
+                or formation == "Off road"
+                or formation == "off_road"
+                or formation == "off road" then
+            wp.action = "Off Road"
+        elseif formation == "On Road"
+                or formation == "On road"
+                or formation == "on_road"
+                or formation == "on road" then
+            wp.action = "On Road"
+        elseif formation == "Rank"
+                or formation == "rank"
+                or formation == "Line Abrest" or "line_abrest" or formation == "line abrest" or formation == "lineabrest"
+                or formation == "Line Abreast" or "Line abreast" or "line_abreast" or formation == "line abreast" or formation == "lineabreast" then
+            wp.action = "Rank"
+        elseif formation == "Cone"
+                or formation == "cone" then
+            wp.action = "Cone"
+        elseif formation == "Diamond"
+                or formation == "diamond" then
+            wp.action = "Diamond"
+        elseif formation == "Vee"
+                or formation == "vee" then
+            wp.action = "Vee"
+        elseif formation == "EchelonL"
+                or formation == "Echelon Left"
+                or formation == "Echelon left"
+                or formation == "echelon_left"
+                or formation == "echelon left"
+                or formation == "echelonl" then
+            wp.action = "EchelonL"
+        elseif formation == "EchelonR"
+                or formation == "Echelon Right"
+                or formation == "Echelon right"
+                or formation == "echelon_right"
+                or formation == "echelon right"
+                or formation == "echelonr" then
+            wp.action = "EchelonR"
         else
-            wp.action = 'Cone' -- if nothing matched
+            wp.action = "Cone" -- if nothing matched
         end
     end
     wp.type = 'Turning Point'
@@ -897,7 +911,7 @@ function TROOPCOMMAND:BuildCommandAndControlMenu(c2_client, options)
             end
             missionCommands.addCommandForGroup(
                 c2_client.group_id,
-                "Toward nearest enemy",
+                "To contact",
                 advance_to_submenu_id,
                 function()
                     local results = __troopship.utils.moveGroupToNearestEnemyPosition(troop.moose_group, troop.maximum_search_distance)
@@ -909,7 +923,7 @@ function TROOPCOMMAND:BuildCommandAndControlMenu(c2_client, options)
                 end,
                 nil)
             if not __troopship.utils.isEmpty(self.routing_zones) then
-                local routing_submenu_id = missionCommands.addSubMenuForGroup(c2_client.group_id, "Navigate to", troop_menu_item_id)
+                local routing_submenu_id = missionCommands.addSubMenuForGroup(c2_client.group_id, "Relocate to", troop_menu_item_id)
                 local routing_item_parent_menu_id = routing_submenu_id
                 local current_routing_menu_item_count = 0
                 for _, zone in ipairs(self.routing_zones) do
@@ -1023,6 +1037,29 @@ function TROOPCOMMAND:BuildCommandAndControlMenu(c2_client, options)
                 end,
                 nil)
             local options_submenu_id = missionCommands.addSubMenuForGroup(c2_client.group_id, "Set", troop_menu_item_id)
+            local formation_submenu_id = missionCommands.addSubMenuForGroup(c2_client.group_id, "Formation", options_submenu_id)
+            for _, formation in ipairs({
+                    "Off road",
+                    "On road",
+                    "Line abreast",
+                    "Cone",
+                    "Diamond",
+                    "Vee",
+                    "Echelon left",
+                    "Echelon right",
+                }) do
+                missionCommands.addCommandForGroup(
+                    c2_client.group_id,
+                    formation,
+                    formation_submenu_id,
+                    function()
+                        local dcs_group = troop.moose_group:GetDCSObject()
+                        local point = __troopship.utils.getLeadPos(dcs_group)
+                        __troopship.utils.moveToPoint(troop.moose_group, point, nil, formation)
+                        trigger.action.outTextForGroup(c2_client.group_id, string.format("%s: %s formation", troop.troop_name, formation), 1, false)
+                    end,
+                    nil)
+            end
             local alarm_state_submenu_id = missionCommands.addSubMenuForGroup(c2_client.group_id, "Alarm state", options_submenu_id)
             missionCommands.addCommandForGroup(
                 c2_client.group_id,

@@ -169,7 +169,8 @@ function __troopship.utils.moveGroupToNearestEnemyPosition(moose_group, maximum_
         -- moose_group:GetDCSObject():setOption(
         --     AI.Option.Ground.id.ALARM_STATE,
         --     AI.Option.Ground.val.ALARM_STATE.AUTO )
-        moose_group:TaskRouteToVec2({x=results.point.x, y=results.point.z}, 999, "Off road")
+        -- moose_group:TaskRouteToVec2({x=results.point.x, y=results.point.z}, 999, "Off road")
+        __troopship.utils.moveToPoint(moose_group, results.point, 999, troop.movement_formation, nil)
     end
     return results
 end
@@ -180,6 +181,147 @@ function __troopship.utils.composeLLDDM(point)
     -- UTILS.tostringLL = function( lat, lon, acc, DMS)
     -- UTILS.tostringLL( lat, lon, LL_Accuracy, true ) -- in DMS
     -- UTILS.tostringLL( lat, lon, LL_Accuracy, false ) -- in DDM
+end
+
+-- From "MIST":
+--      Mission Scripting Tools for Digital Combat Simulator
+--      Authors: Grimes (mrSkortch), Speed
+--      https://github.com/mrSkortch/MissionScriptingTools
+function __troopship.utils.buildGroundWP(point, overRideForm, overRideSpeed)
+    local wp = {}
+    wp.x = point.x
+    if point.z then
+        wp.y = point.z
+    else
+        wp.y = point.y
+    end
+    local formation, speed
+    if point.speed and not overRideSpeed then
+        wp.speed = point.speed
+    elseif type(overRideSpeed) == 'number' then
+        wp.speed = overRideSpeed
+    else
+        wp.speed = 14
+    end
+    if point.formation and not overRideForm then
+        formation = point.formation
+    else
+        formation = overRideForm
+    end
+    if not formation then
+        wp.action = 'Cone'
+    else
+        formation = string.lower(formation)
+        if formation == "Off Road"
+                or formation == "Off road"
+                or formation == "off_road"
+                or formation == "off road" then
+            wp.action = "Off Road"
+        elseif formation == "On Road"
+                or formation == "On road"
+                or formation == "on_road"
+                or formation == "on road" then
+            wp.action = "On Road"
+        elseif formation == "Rank"
+                or formation == "rank"
+                or formation == "Line Abrest" or "line_abrest" or formation == "line abrest" or formation == "lineabrest"
+                or formation == "Line Abreast" or "Line abreast" or "line_abreast" or formation == "line abreast" or formation == "lineabreast" then
+            wp.action = "Rank"
+        elseif formation == "Cone"
+                or formation == "cone" then
+            wp.action = "Cone"
+        elseif formation == "Diamond"
+                or formation == "diamond" then
+            wp.action = "Diamond"
+        elseif formation == "Vee"
+                or formation == "vee" then
+            wp.action = "Vee"
+        elseif formation == "EchelonL"
+                or formation == "Echelon Left"
+                or formation == "Echelon left"
+                or formation == "echelon_left"
+                or formation == "echelon left"
+                or formation == "echelonl" then
+            wp.action = "EchelonL"
+        elseif formation == "EchelonR"
+                or formation == "Echelon Right"
+                or formation == "Echelon right"
+                or formation == "echelon_right"
+                or formation == "echelon right"
+                or formation == "echelonr" then
+            wp.action = "EchelonR"
+        else
+            wp.action = "Cone" -- if nothing matched
+        end
+    end
+    wp.type = 'Turning Point'
+    return wp
+end
+
+-- From "MIST":
+--      Mission Scripting Tools for Digital Combat Simulator
+--      Authors: Grimes (mrSkortch), Speed
+--      https://github.com/mrSkortch/MissionScriptingTools
+function __troopship.utils.getLeadPos(group)
+    if type(group) == 'string' then -- group name
+        group = Group.getByName(group)
+    end
+
+    local units = group:getUnits()
+
+    local leader = units[1]
+    if not Unit.isExist(leader) then	-- SHOULD be good, but if there is a bug, this code future-proofs it then.
+        local lowestInd = math.huge
+        for ind, unit in pairs(units) do
+            if Unit.isExist(unit) and ind < lowestInd then
+                lowestInd = ind
+                return unit:getPosition().p
+            end
+        end
+    end
+    if leader and Unit.isExist(leader) then	-- maybe a little too paranoid now...
+        return leader:getPosition().p
+    end
+end
+
+-- Adapted from "MIST":
+--      Mission Scripting Tools for Digital Combat Simulator
+--      Authors: Grimes (mrSkortch), Speed
+--      https://github.com/mrSkortch/MissionScriptingTools
+function __troopship.utils.moveToPoint(moose_group, move_to_point, speed, formation, heading)
+    local group = moose_group:GetDCSObject()
+    if formation == nil then
+        formation = "Cone"
+    end
+    local heading = heading or math.random()*2*math.pi
+    if heading >= 2*math.pi then
+        heading = heading - 2*math.pi
+    end
+    if speed == nil then
+        speed = 14
+    end
+    local path = {}
+    local offset = {}
+    local posStart = __troopship.utils.getLeadPos(group)
+    offset.x = math.ceil(math.sin(heading - (math.pi/2)) * 50 + move_to_point.x, 3)
+    offset.z = math.ceil(math.cos(heading + (math.pi/2)) * 50 + move_to_point.z, 3)
+    path[#path + 1] = __troopship.utils.buildGroundWP(posStart, formation, speed)
+    path[#path + 1] = __troopship.utils.buildGroundWP({x = posStart.x + 25, z = posStart.z + 25}, formation, speed)
+    path[#path + 1] = __troopship.utils.buildGroundWP(offset, formation, speed)
+    path[#path + 1] = __troopship.utils.buildGroundWP(move_to_point, formation, speed)
+    local mission = {
+        id = "Mission",
+        params = {
+            route = {
+                points = path,
+            },
+        },
+    }
+	local controller = group:getController()
+    timer.scheduleFunction( -- deal with Controller requiring a few seconds to start
+        function(args, time)
+            controller:setTask(mission)
+        end, nil, timer.getTime() + 1)
 end
 
 --------------------------------------------------------------------------------
@@ -279,6 +421,7 @@ function TROOPCOMMAND.new(name, coalition, options)
     else
         self.troop_navigation_feedback_verbosity = 1
     end
+    self.troop_name_id_map = {}
     self.deployed_troops = {}
     self.withdrawn_troops = {}
     self.num_deployed_troops = 0
@@ -387,9 +530,6 @@ end
 
 function TROOPCOMMAND:RegisterRoutingZoneName(zone_name, display_name)
     local zone = __troopship.utils.getValidatedZoneFromName(zone_name, display_name)
-    if zone ~= nil then
-        self.routing_zones[#self.routing_zones+1] = zone
-    end
     if display_name == nil then
         display_names = nil
     else
@@ -534,11 +674,12 @@ function TROOPCOMMAND:__registerGroupAsTroop(moose_group, troop_options)
             deploy_route_to_zone=deploy_route_to_zone,
             deploy_route_to_zone_name=deploy_route_to_zone_name,
             movement_speed=troop_options["movement_speed"] or 999,
-            movement_formation=troop_options["movement_formation"] or "Off road",
+            movement_formation=troop_options["movement_formation"] or "Cone",
             maximum_search_distance=troop_options["maximum_search_distance"] or 2000, -- max distance that troops search for enemy
             is_transportable=is_transportable,
             is_commandable=is_commandable,
         }
+    self.troop_name_id_map[troop_name] = troop_id
     self.num_deployed_troops = self.num_deployed_troops + 1
     self:UpdateCommandAndControlClientMenus()
     return self.deployed_troops[troop_id]
@@ -549,8 +690,25 @@ function TROOPCOMMAND:PurgeTroop(troop)
     if troop ~= nil then
         self.deployed_troops[troop.troop_id] = nil
         self.withdrawn_troops[troop.troop_id] = nil
+        self.troop_name_id_map[troop.troop_name] = nil
     end
 end
+
+-- Find troop
+function TROOPCOMMAND:GetTroopByName(troop_name, is_include_withdraw_troops)
+    local troop_id = self.troop_name_id_map[troop_name]
+    if troop_id == nil then
+        return nil
+    end
+    local troop = self.deployed_troops[troop_id]
+    if troop ~= nil then
+        return troop
+    end
+    if is_include_withdraw_troops then
+        return self.withdrawn_troops[troop_id]
+    end
+end
+
 
 -- Remove a group from availability
 function TROOPCOMMAND:WithdrawTroop(troop_id)
@@ -726,27 +884,36 @@ function TROOPCOMMAND:BuildCommandAndControlMenu(c2_client, options)
                                 if false then
                                 elseif direction == "North" then
                                     point.x = point.x + math.floor(distance * 1000)
+                                    heading = 0
                                 elseif direction == "Northeast" then
                                     point.x = point.x + math.floor(distance * 1000)
                                     point.z = point.z + math.floor(distance * 1000)
+                                    heading = math.pi * 0.25
                                 elseif direction == "East" then
                                     point.z = point.z + math.floor(distance * 1000)
+                                    heading = math.pi * 0.5
                                 elseif direction == "Southeast" then
                                     point.x = point.x - math.floor(distance * 1000)
                                     point.z = point.z + math.floor(distance * 1000)
+                                    heading = math.pi * 0.75
                                 elseif direction == "South" then
                                     point.x = point.x - math.floor(distance * 1000)
+                                    heading = math.pi
                                 elseif direction == "Southwest" then
                                     point.x = point.x - math.floor(distance * 1000)
                                     point.z = point.z - math.floor(distance * 1000)
+                                    heading = math.pi * 1.25
                                 elseif direction == "West" then
                                     point.z = point.z - math.floor(distance * 1000)
+                                    heading = math.pi * 1.5
                                 elseif direction == "Northwest" then
                                     point.x = point.x + math.floor(distance * 1000)
                                     point.z = point.z - math.floor(distance * 1000)
+                                    heading = math.pi * 1.75
                                 end
                                 -- troop.moose_group:RouteToVec3(point, 999)
-                                troop.moose_group:TaskRouteToVec2({x=point.x, y=point.z}, 999, "Off road")
+                                -- troop.moose_group:TaskRouteToVec2({x=point.x, y=point.z}, 999, "Off road")
+                                __troopship.utils.moveToPoint(troop.moose_group, point, 999, troop.movement_formation, heading)
                                 trigger.action.outTextForCoalition(c2_client.coalition, string.format("%s: moving %s for %s clicks to %s!", troop.troop_name, direction, distance, __troopship.utils.composeLLDDM(point)), 2 )
                             end
                         end,
@@ -755,7 +922,7 @@ function TROOPCOMMAND:BuildCommandAndControlMenu(c2_client, options)
             end
             missionCommands.addCommandForGroup(
                 c2_client.group_id,
-                "Toward nearest enemy",
+                "To contact",
                 advance_to_submenu_id,
                 function()
                     local results = __troopship.utils.moveGroupToNearestEnemyPosition(troop.moose_group, troop.maximum_search_distance)
@@ -767,7 +934,7 @@ function TROOPCOMMAND:BuildCommandAndControlMenu(c2_client, options)
                 end,
                 nil)
             if not __troopship.utils.isEmpty(self.routing_zones) then
-                local routing_submenu_id = missionCommands.addSubMenuForGroup(c2_client.group_id, "Navigate to", troop_menu_item_id)
+                local routing_submenu_id = missionCommands.addSubMenuForGroup(c2_client.group_id, "Relocate to", troop_menu_item_id)
                 local routing_item_parent_menu_id = routing_submenu_id
                 local current_routing_menu_item_count = 0
                 for _, zone in ipairs(self.routing_zones) do
@@ -881,6 +1048,65 @@ function TROOPCOMMAND:BuildCommandAndControlMenu(c2_client, options)
                 end,
                 nil)
             local options_submenu_id = missionCommands.addSubMenuForGroup(c2_client.group_id, "Set", troop_menu_item_id)
+            local formation_submenu_id = missionCommands.addSubMenuForGroup(c2_client.group_id, "Formation", options_submenu_id)
+            for _, formation in ipairs({
+                    "Off road",
+                    "On road",
+                    "Line abreast",
+                    "Cone",
+                    "Diamond",
+                    "Vee",
+                    "Echelon left",
+                    "Echelon right",
+                }) do
+                missionCommands.addCommandForGroup(
+                    c2_client.group_id,
+                    formation,
+                    formation_submenu_id,
+                    function()
+                        local dcs_group = troop.moose_group:GetDCSObject()
+                        local point = __troopship.utils.getLeadPos(dcs_group)
+                        point.x = point.x + 50
+                        point.z = point.z + 50
+                        __troopship.utils.moveToPoint(troop.moose_group, point, nil, formation, nil)
+                        trigger.action.outTextForGroup(c2_client.group_id, string.format("%s: %s formation", troop.troop_name, formation), 1, false)
+                    end,
+                    nil)
+            end
+            local heading_submenu_id = missionCommands.addSubMenuForGroup(c2_client.group_id, "Heading", options_submenu_id)
+            for _, direction in ipairs({"North", "Northeast", "East", "Southeast", "South", "Southwest", "West", "Northwest"}) do
+                if false then
+                elseif direction == "North" then
+                    heading = 0
+                elseif direction == "Northeast" then
+                    heading = math.pi * 0.25
+                elseif direction == "East" then
+                    heading = math.pi * 0.5
+                elseif direction == "Southeast" then
+                    heading = math.pi * 0.75
+                elseif direction == "South" then
+                    heading = math.pi
+                elseif direction == "Southwest" then
+                    heading = math.pi * 1.25
+                elseif direction == "West" then
+                    heading = math.pi * 1.5
+                elseif direction == "Northwest" then
+                    heading = math.pi * 1.75
+                end
+                missionCommands.addCommandForGroup(
+                    c2_client.group_id,
+                    direction,
+                    heading_submenu_id,
+                    function()
+                        local dcs_group = troop.moose_group:GetDCSObject()
+                        local point = __troopship.utils.getLeadPos(dcs_group)
+                        point.x = point.x + 50
+                        point.z = point.z + 50
+                        __troopship.utils.moveToPoint(troop.moose_group, point, nil, nil, heading)
+                        trigger.action.outTextForGroup(c2_client.group_id, string.format("%s: turning %s", troop.troop_name, direction), 1, false)
+                    end,
+                    nil)
+            end
             local alarm_state_submenu_id = missionCommands.addSubMenuForGroup(c2_client.group_id, "Alarm state", options_submenu_id)
             missionCommands.addCommandForGroup(
                 c2_client.group_id,
@@ -914,25 +1140,23 @@ function TROOPCOMMAND:BuildCommandAndControlMenu(c2_client, options)
 end
 
 function TROOPCOMMAND:SendGroupToZone(troop, zone)
-    if self.troop_navigation_feedback_verbosity > 0 then
-        timer.scheduleFunction(
-            function(args, time)
-                if not troop.moose_group:IsAlive() then
-                    return nil
-                elseif troop.moose_group:IsNotInZone(zone) then
-                    return time + 20
-                else
-                    trigger.action.outTextForCoalition(troop.coalition, string.format("%s: Arrived at %s", troop.troop_name, zone.display_name), 4)
-                    return nil
-                end
-            end,
-            nil,
-            timer.getTime() + 1)
-    end
-    local target_coord = zone:GetVec2()
-    -- troop.moose_group:RouteGroundTo(target_coord, troop.movement_speed, troop.movement_formation, 1)
-    -- troop.moose_group:TaskRouteToVec2({x=x, y=y}, troop.movement_speed, troop.movement_formation)
-    troop.moose_group:TaskRouteToVec2(target_coord, troop.movement_speed, troop.movement_formation)
+    -- if self.troop_navigation_feedback_verbosity > 0 then
+    --     timer.scheduleFunction(
+    --         function(args, time)
+    --             if not troop.moose_group:IsAlive() then
+    --                 return nil
+    --             elseif troop.moose_group:IsNotInZone(zone) then
+    --                 return time + 20
+    --             else
+    --                 trigger.action.outTextForCoalition(troop.coalition, string.format("%s: Arrived at %s", troop.troop_name, zone.display_name), 4)
+    --                 return nil
+    --             end
+    --         end,
+    --         nil,
+    --         timer.getTime() + 1)
+    -- end
+    local point = zone:GetVec3()
+    __troopship.utils.moveToPoint(troop.moose_group, point, 999, troop.movement_formation, nil)
 end
 
 --------------------------------------------------------------------------------

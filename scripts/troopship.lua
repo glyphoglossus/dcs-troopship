@@ -183,38 +183,63 @@ function __troopship.utils.composeLLDDM(point)
     -- UTILS.tostringLL( lat, lon, LL_Accuracy, false ) -- in DDM
 end
 
-function __troopship.utils.moveToPoint(group, move_to_point, speed, formation)
 
-    timer.scheduleFunction(
-        function(args, time)
-            -- TriggerZone = {
-            --  point = Vec3,
-            --  radius = Distance
-            -- }
-            local zone = {
-                point = move_to_point, -- vec3
-                radius = 10,
-            }
-            mist.groupToPoint(
-                group:GetName(),
-                zone,
-                formation or "Cone",
-                180,
-                speed or 999,
-                false)
-        end, nil, timer.getTime() + 1)
+function mist_move(vars)
+    local group = vars.group --Required
+    local point = vars.point --required
+    local radius = vars.radius or 0
+    local form = vars.form or 'Cone'
+    local heading = vars.heading or math.random()*2*math.pi
+    local speed = vars.speed or mist.utils.kmphToMps(20)
+    local path = {}
+    if heading >= 2*math.pi then
+        heading = heading - 2*math.pi
+    end
+    local rndCoord = point
+    local offset = {}
+    local posStart = mist.getLeadPos(group)
+    offset.x = mist.utils.round(math.sin(heading - (math.pi/2)) * 50 + point.x, 3)
+    offset.z = mist.utils.round(math.cos(heading + (math.pi/2)) * 50 + point.z, 3)
+    path[#path + 1] = mist.ground.buildWP(posStart, form, speed)
+    path[#path + 1] = mist.ground.buildWP({x = posStart.x + 25, z = posStart.z + 25}, form, speed)
+    path[#path + 1] = mist.ground.buildWP(offset, form, speed)
+    path[#path + 1] = mist.ground.buildWP(point, form, speed)
+    mist.goRoute(group, path)
+    return
+end
+
+function __troopship.utils.moveToPoint(group, move_to_point, speed, formation)
 
     -- timer.scheduleFunction(
     --     function(args, time)
-    --         -- local point = {x=move_to_point.x, z=move_to_point.y}
-    --         vars = {
-    --             group=group:GetName(),
-    --             point=move_to_point, -- needs be Vec3 point
-    --             -- disableRoads=true
-    --             }
-    --         mist.groupToRandomPoint(vars)
-    --         trigger.action.outText("DONE!", 10)
+    --         -- TriggerZone = {
+    --         --  point = Vec3,
+    --         --  radius = Distance
+    --         -- }
+    --         local zone = {
+    --             point = move_to_point, -- vec3
+    --             radius = 10,
+    --         }
+    --         mist.groupToPoint(
+    --             group:GetName(),
+    --             zone,
+    --             formation or "Cone",
+    --             180,
+    --             speed or 999,
+    --             true)
     --     end, nil, timer.getTime() + 1)
+
+    timer.scheduleFunction(
+        function(args, time)
+            -- local point = {x=move_to_point.x, z=move_to_point.y}
+            vars = {
+                group=group:GetName(),
+                point=move_to_point, -- needs be Vec3 point
+		        form=formation or "Cone",
+		        speed=speed,
+                }
+            mist_move(vars)
+        end, nil, timer.getTime() + 1)
 
     -- timer.scheduleFunction(
     --     function(args, time)

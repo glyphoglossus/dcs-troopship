@@ -1051,7 +1051,8 @@ function TROOPCOMMAND:BuildCommandAndControlMenu(c2_client, options)
                         local point = __troopship.utils.getLeadUnit(troop.moose_group):getPoint()
                         point.x = point.x + 50
                         point.z = point.z + 50
-                        __troopship.utils.moveToPoint(troop.moose_group, point, nil, formation, nil)
+                        troop.movement_formation = formation
+                        __troopship.utils.moveToPoint(troop.moose_group, point, nil, troop.movement_formation, nil)
                         trigger.action.outTextForGroup(c2_client.group_id, string.format("%s: %s formation", troop.troop_name, formation), 1, false)
                     end,
                     nil)
@@ -1084,7 +1085,7 @@ function TROOPCOMMAND:BuildCommandAndControlMenu(c2_client, options)
                         local point = __troopship.utils.getLeadUnit(troop.moose_group):getPoint()
                         point.x = point.x + 50
                         point.z = point.z + 50
-                        __troopship.utils.moveToPoint(troop.moose_group, point, nil, nil, heading)
+                        __troopship.utils.moveToPoint(troop.moose_group, point, nil, troop.movement_formation, heading)
                         trigger.action.outTextForGroup(c2_client.group_id, string.format("%s: turning %s", troop.troop_name, direction), 1, false)
                     end,
                     nil)

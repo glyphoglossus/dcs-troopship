@@ -91,11 +91,29 @@ function __troopship.utils.getMaxSpeedOfSlowestUnit(moose_group)
     return max_speed_of_slowest_unit
 end
 
-function __troopship.utils.getFirstUnit(moose_group)
-    return moose_group:GetUnit(1)
-    -- for _, unit in pairs( moose_group:GetUnits() ) do
-    --     return unit
-    -- end
+-- From "MIST":
+--      Mission Scripting Tools for Digital Combat Simulator
+--      Authors: Grimes (mrSkortch), Speed
+--      https://github.com/mrSkortch/MissionScriptingTools
+function __troopship.utils.getLeadUnit(moose_group)
+    local group = moose_group:GetDCSObject()
+    if type(group) == 'string' then -- group name
+        group = Group.getByName(group)
+    end
+    local units = group:getUnits()
+    local leader = units[1]
+    if not Unit.isExist(leader) then	-- SHOULD be good, but if there is a bug, this code future-proofs it then.
+        local lowestInd = math.huge
+        for ind, unit in pairs(units) do
+            if Unit.isExist(unit) and ind < lowestInd then
+                lowestInd = ind
+                return unit
+            end
+        end
+    end
+    if leader and Unit.isExist(leader) then	-- maybe a little too paranoid now...
+        return leader
+    end
 end
 
 -- adapted from Ciribob's EXCELLENT CTLD script https://github.com/ciribob/DCS-CTLD
@@ -115,25 +133,23 @@ end
 
 -- adapted from Ciribob's EXCELLENT CTLD script https://github.com/ciribob/DCS-CTLD
 -- returns nil if no enemy in range
-function __troopship.utils.nearestEnemyPosition(moose_unit, maximum_search_distance)
-    if maximum_search_distance == nil then
-        maximum_search_distance = 2000
-    end
-    local dcs_unit = moose_unit:GetDCSObject()
-    local dcs_unit_point = dcs_unit:getPoint()
+function __troopship.utils.nearestEnemyPosition(troop)
+    local maximum_search_distance = troop.maximum_search_distance
+    -- local lead_unit_point = __troopship.utils.getLeadUnitPoint(troop.moose_group:GetDCSObject())
+    local lead_unit_point = __troopship.utils.getLeadUnit(troop.moose_group):getPoint()
     local nearest_enemy_unit = nil
     local nearest_enemy_point = nil
     local nearest_enemy_dist = maximum_search_distance + 1
     local dcs_groups = nil
-    if dcs_unit:getCoalition() == coalition.side.RED then
-        dcs_groups = coalition.getGroups(coalition.side.BLUE, Group.Category.GROUND)
+    if troop.moose_group:GetDCSObject():getCoalition() == coalition.side.RED then
+        enemy_groups = coalition.getGroups(coalition.side.BLUE, Group.Category.GROUND)
     else
-        dcs_groups = coalition.getGroups(coalition.side.RED, Group.Category.GROUND)
+        enemy_groups = coalition.getGroups(coalition.side.RED, Group.Category.GROUND)
     end
-    for _, dcs_group in pairs(dcs_groups) do
-        if dcs_group ~= nil then
+    for _, enemy_group in pairs(enemy_groups) do
+        if enemy_group ~= nil then
             local focal_enemy_unit = nil
-            for index, unit in ipairs(dcs_group:getUnits()) do
+            for index, unit in ipairs(enemy_group:getUnits()) do
                 if unit:getLife() >= 1 then
                     focal_enemy_unit = unit
                     break
@@ -142,7 +158,7 @@ function __troopship.utils.nearestEnemyPosition(moose_unit, maximum_search_dista
             if focal_enemy_unit ~= nil then
                 local enemy_point = focal_enemy_unit:getPoint() -- vec3
                 local enemy_position = focal_enemy_unit:getPosition() -- vec2
-                local enemy_dist = __troopship.utils.pointDistance(dcs_unit_point, enemy_point)
+                local enemy_dist = __troopship.utils.pointDistance(lead_unit_point, enemy_point)
                 if enemy_dist < nearest_enemy_dist then
                     nearest_enemy_unit = focal_enemy_unit
                     nearest_enemy_point = enemy_point
@@ -160,17 +176,11 @@ function __troopship.utils.nearestEnemyPosition(moose_unit, maximum_search_dista
 end
 
 -- adapted from Ciribob's EXCELLENT CTLD script https://github.com/ciribob/DCS-CTLD
-function __troopship.utils.moveGroupToNearestEnemyPosition(moose_group, maximum_search_distance)
-    local moose_unit = moose_group:GetUnit(1)
-    local results = __troopship.utils.nearestEnemyPosition(moose_unit, maximum_search_distance)
+function __troopship.utils.moveGroupToNearestEnemyPosition(troop, maximum_search_distance)
+    local results = __troopship.utils.nearestEnemyPosition(troop)
     if results ~= nil then
-        -- moose_group:RouteToVec3(results.point, 999)
-        moose_group:OptionAlarmStateAuto()
-        -- moose_group:GetDCSObject():setOption(
-        --     AI.Option.Ground.id.ALARM_STATE,
-        --     AI.Option.Ground.val.ALARM_STATE.AUTO )
-        -- moose_group:TaskRouteToVec2({x=results.point.x, y=results.point.z}, 999, "Off road")
-        __troopship.utils.moveToPoint(moose_group, results.point, 999, troop.movement_formation, nil)
+        troop.moose_group:OptionAlarmStateAuto()
+        __troopship.utils.moveToPoint(troop.moose_group, results.point, 999, troop.movement_formation, nil)
     end
     return results
 end
@@ -258,32 +268,6 @@ function __troopship.utils.buildGroundWP(point, overRideForm, overRideSpeed)
     return wp
 end
 
--- From "MIST":
---      Mission Scripting Tools for Digital Combat Simulator
---      Authors: Grimes (mrSkortch), Speed
---      https://github.com/mrSkortch/MissionScriptingTools
-function __troopship.utils.getLeadPos(group)
-    if type(group) == 'string' then -- group name
-        group = Group.getByName(group)
-    end
-
-    local units = group:getUnits()
-
-    local leader = units[1]
-    if not Unit.isExist(leader) then	-- SHOULD be good, but if there is a bug, this code future-proofs it then.
-        local lowestInd = math.huge
-        for ind, unit in pairs(units) do
-            if Unit.isExist(unit) and ind < lowestInd then
-                lowestInd = ind
-                return unit:getPosition().p
-            end
-        end
-    end
-    if leader and Unit.isExist(leader) then	-- maybe a little too paranoid now...
-        return leader:getPosition().p
-    end
-end
-
 -- Adapted from "MIST":
 --      Mission Scripting Tools for Digital Combat Simulator
 --      Authors: Grimes (mrSkortch), Speed
@@ -302,7 +286,7 @@ function __troopship.utils.moveToPoint(moose_group, move_to_point, speed, format
     end
     local path = {}
     local offset = {}
-    local posStart = __troopship.utils.getLeadPos(group)
+    local posStart = __troopship.utils.getLeadUnit(moose_group):getPoint()
     offset.x = math.ceil(math.sin(heading - (math.pi/2)) * 50 + move_to_point.x, 3)
     offset.z = math.ceil(math.cos(heading + (math.pi/2)) * 50 + move_to_point.z, 3)
     path[#path + 1] = __troopship.utils.buildGroundWP(posStart, formation, speed)
@@ -914,7 +898,7 @@ function TROOPCOMMAND:BuildCommandAndControlMenu(c2_client, options)
                                 -- troop.moose_group:RouteToVec3(point, 999)
                                 -- troop.moose_group:TaskRouteToVec2({x=point.x, y=point.z}, 999, "Off road")
                                 __troopship.utils.moveToPoint(troop.moose_group, point, 999, troop.movement_formation, heading)
-                                trigger.action.outTextForCoalition(c2_client.coalition, string.format("%s: moving %s for %s clicks to %s!", troop.troop_name, direction, distance, __troopship.utils.composeLLDDM(point)), 2 )
+                                trigger.action.outTextForCoalition(c2_client.coalition, string.format("%s: Advancing %s for %s clicks to %s!", troop.troop_name, direction, distance, __troopship.utils.composeLLDDM(point)), 2 )
                             end
                         end,
                         nil)
@@ -925,16 +909,16 @@ function TROOPCOMMAND:BuildCommandAndControlMenu(c2_client, options)
                 "To contact",
                 advance_to_submenu_id,
                 function()
-                    local results = __troopship.utils.moveGroupToNearestEnemyPosition(troop.moose_group, troop.maximum_search_distance)
+                    local results = __troopship.utils.moveGroupToNearestEnemyPosition(troop, troop.maximum_search_distance)
                     if results ~= nil then
-                        trigger.action.outTextForCoalition(c2_client.coalition, string.format("%s: moving to engage enemy at: %s", troop.troop_name, __troopship.utils.composeLLDDM(results.point)), 2 )
+                        trigger.action.outTextForCoalition(c2_client.coalition, string.format("%s: Advancing to contact, enemy at: %s", troop.troop_name, __troopship.utils.composeLLDDM(results.point)), 2 )
                     else
                         trigger.action.outTextForGroup(c2_client.group_id, string.format("%s: no enemy detected in vicinity!", troop.troop_name), 2)
                     end
                 end,
                 nil)
             if not __troopship.utils.isEmpty(self.routing_zones) then
-                local routing_submenu_id = missionCommands.addSubMenuForGroup(c2_client.group_id, "Relocate to", troop_menu_item_id)
+                local routing_submenu_id = missionCommands.addSubMenuForGroup(c2_client.group_id, "Route to", troop_menu_item_id)
                 local routing_item_parent_menu_id = routing_submenu_id
                 local current_routing_menu_item_count = 0
                 for _, zone in ipairs(self.routing_zones) do
@@ -951,7 +935,7 @@ function TROOPCOMMAND:BuildCommandAndControlMenu(c2_client, options)
                         function()
                             -- local target_coord = zone:GetCoordinate()
                             -- troop.moose_group:RouteGroundTo(target_coord, troop.movement_speed, troop.movement_formation, 1)
-                            trigger.action.outTextForCoalition(c2_client.coalition, string.format("%s: Moving to %s", troop.troop_name, zone.display_name), 2 )
+                            trigger.action.outTextForCoalition(c2_client.coalition, string.format("%s: Routing to %s", troop.troop_name, zone.display_name), 2 )
                             self:SendGroupToZone(troop, zone)
                         end,
                         nil)
@@ -968,46 +952,46 @@ function TROOPCOMMAND:BuildCommandAndControlMenu(c2_client, options)
                     trigger.action.outTextForCoalition(c2_client.coalition, string.format("%s: Holding position at %s", troop.troop_name, __troopship.utils.composeLLDDM(point)), 2 )
                 end,
                 nil)
-            local smoke_submenu_id = missionCommands.addSubMenuForGroup(c2_client.group_id, "Smoke", troop_menu_item_id)
+            local smoke_submenu_id = missionCommands.addSubMenuForGroup(c2_client.group_id, "Pop smoke", troop_menu_item_id)
             missionCommands.addCommandForGroup(
                 c2_client.group_id,
-                "Pop blue smoke",
+                "Blue",
                 smoke_submenu_id,
                 function()
-                    __troopship.utils.getFirstUnit(troop.moose_group):SmokeBlue()
+                    troop.moose_group:GetUnit(1):SmokeBlue()
                 end,
                 nil)
             missionCommands.addCommandForGroup(
                 c2_client.group_id,
-                "Pop green smoke",
+                "Green",
                 smoke_submenu_id,
                 function()
-                    __troopship.utils.getFirstUnit(troop.moose_group):SmokeGreen()
+                    troop.moose_group:GetUnit(1):SmokeGreen()
                 end,
                 nil)
             missionCommands.addCommandForGroup(
                 c2_client.group_id,
-                "Pop orange smoke",
+                "Orange",
                 smoke_submenu_id,
                 function()
-                    __troopship.utils.getFirstUnit(troop.moose_group):SmokeOrange()
+                    troop.moose_group:GetUnit(1):SmokeOrange()
                 end,
                 nil)
             missionCommands.addCommandForGroup(
                 c2_client.group_id,
-                "Pop red smoke",
+                "Red",
                 smoke_submenu_id,
                 function()
-                    __troopship.utils.getFirstUnit(troop.moose_group):SmokeRed()
+                    troop.moose_group:GetUnit(1):SmokeRed()
                 end,
                 nil)
-            local flare_submenu_id = missionCommands.addSubMenuForGroup(c2_client.group_id, "Flare", troop_menu_item_id)
+            local flare_submenu_id = missionCommands.addSubMenuForGroup(c2_client.group_id, "Fire flare", troop_menu_item_id)
             missionCommands.addCommandForGroup(
                 c2_client.group_id,
                 "Red flare",
                 flare_submenu_id,
                 function()
-                    __troopship.utils.getFirstUnit(troop.moose_group):FlareRed()
+                    troop.moose_group:GetUnit(1):FlareRed()
                 end,
                 nil)
             missionCommands.addCommandForGroup(
@@ -1015,7 +999,7 @@ function TROOPCOMMAND:BuildCommandAndControlMenu(c2_client, options)
                 "White flare",
                 flare_submenu_id,
                 function()
-                    __troopship.utils.getFirstUnit(troop.moose_group):FlareGreen()
+                    troop.moose_group:GetUnit(1):FlareGreen()
                 end,
                 nil)
             missionCommands.addCommandForGroup(
@@ -1023,7 +1007,7 @@ function TROOPCOMMAND:BuildCommandAndControlMenu(c2_client, options)
                 "Yellow flare",
                 flare_submenu_id,
                 function()
-                    __troopship.utils.getFirstUnit(troop.moose_group):FlareYellow()
+                    troop.moose_group:GetUnit(1):FlareYellow()
                 end,
                 nil)
             local report_submenu_id = missionCommands.addSubMenuForGroup(c2_client.group_id, "Report", troop_menu_item_id)
@@ -1064,8 +1048,7 @@ function TROOPCOMMAND:BuildCommandAndControlMenu(c2_client, options)
                     formation,
                     formation_submenu_id,
                     function()
-                        local dcs_group = troop.moose_group:GetDCSObject()
-                        local point = __troopship.utils.getLeadPos(dcs_group)
+                        local point = __troopship.utils.getLeadUnit(troop.moose_group):getPoint()
                         point.x = point.x + 50
                         point.z = point.z + 50
                         __troopship.utils.moveToPoint(troop.moose_group, point, nil, formation, nil)
@@ -1098,8 +1081,7 @@ function TROOPCOMMAND:BuildCommandAndControlMenu(c2_client, options)
                     direction,
                     heading_submenu_id,
                     function()
-                        local dcs_group = troop.moose_group:GetDCSObject()
-                        local point = __troopship.utils.getLeadPos(dcs_group)
+                        local point = __troopship.utils.getLeadUnit(troop.moose_group):getPoint()
                         point.x = point.x + 50
                         point.z = point.z + 50
                         __troopship.utils.moveToPoint(troop.moose_group, point, nil, nil, heading)
@@ -1647,7 +1629,7 @@ function __troopship.TROOPSHIP:UnloadTroops(troop, options)
                             trigger.action.outTextForCoalition(self.coalition, string.format("%s: Moving to %s", troop.troop_name, direct_to_zone.display_name), 2 )
                             self.troop_command:SendGroupToZone(troop, direct_to_zone)
                         elseif is_advance_to_enemy then
-                            local results = __troopship.utils.moveGroupToNearestEnemyPosition(troop.moose_group, troop.maximum_search_distance)
+                            local results = __troopship.utils.moveGroupToNearestEnemyPosition(troop, troop.maximum_search_distance)
                             if results ~= nil then
                                 trigger.action.outTextForCoalition(self.coalition, string.format("%s: Moving to engage enemy at: %s", troop.troop_name, __troopship.utils.composeLLDDM(results.point)), 2 )
                             end

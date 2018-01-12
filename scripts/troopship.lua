@@ -854,7 +854,7 @@ function TROOPCOMMAND:BuildCommandAndControlMenu(c2_client, options)
             if parent_menu_id == c2_client.c2_submenu_id then
                 c2_client.c2_submenu_item_ids[#c2_client.c2_submenu_item_ids+1] = troop_menu_item_id
             end
-            local advance_to_submenu_id = missionCommands.addSubMenuForGroup(c2_client.group_id, "Advance", troop_menu_item_id)
+            local advance_to_submenu_id = missionCommands.addSubMenuForGroup(c2_client.group_id, "Move", troop_menu_item_id)
             for di, direction in pairs({"North", "Northeast", "East", "Southeast", "South", "Southwest", "West", "Northwest"}) do
                 local compass_direction_submenu_id = missionCommands.addSubMenuForGroup(c2_client.group_id, direction, advance_to_submenu_id)
                 for ds, distance in pairs({0.25, 0.5, 1, 2, 5, 10, 15, 20, 40}) do
@@ -904,19 +904,6 @@ function TROOPCOMMAND:BuildCommandAndControlMenu(c2_client, options)
                         nil)
                 end
             end
-            missionCommands.addCommandForGroup(
-                c2_client.group_id,
-                "To contact",
-                advance_to_submenu_id,
-                function()
-                    local results = __troopship.utils.moveGroupToNearestEnemyPosition(troop, troop.maximum_search_distance)
-                    if results ~= nil then
-                        trigger.action.outTextForCoalition(c2_client.coalition, string.format("%s: Advancing to contact, enemy at: %s", troop.troop_name, __troopship.utils.composeLLDDM(results.point)), 2 )
-                    else
-                        trigger.action.outTextForGroup(c2_client.group_id, string.format("%s: no enemy detected in vicinity!", troop.troop_name), 2)
-                    end
-                end,
-                nil)
             if not __troopship.utils.isEmpty(self.routing_zones) then
                 local routing_submenu_id = missionCommands.addSubMenuForGroup(c2_client.group_id, "Route to", troop_menu_item_id)
                 local routing_item_parent_menu_id = routing_submenu_id
@@ -941,6 +928,19 @@ function TROOPCOMMAND:BuildCommandAndControlMenu(c2_client, options)
                         nil)
                 end
             end
+            missionCommands.addCommandForGroup(
+                c2_client.group_id,
+                "Advance to contact",
+                troop_menu_item_id,
+                function()
+                    local results = __troopship.utils.moveGroupToNearestEnemyPosition(troop, troop.maximum_search_distance)
+                    if results ~= nil then
+                        trigger.action.outTextForCoalition(c2_client.coalition, string.format("%s: Advancing to contact: %s", troop.troop_name, __troopship.utils.composeLLDDM(results.point)), 2 )
+                    else
+                        trigger.action.outTextForGroup(c2_client.group_id, string.format("%s: no enemy detected in vicinity!", troop.troop_name), 2)
+                    end
+                end,
+                nil)
             missionCommands.addCommandForGroup(
                 c2_client.group_id,
                 "Hold position",

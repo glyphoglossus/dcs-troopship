@@ -860,7 +860,7 @@ function TROOPCOMMAND:BuildCommandAndControlMenu(c2_client, options)
                 for ds, distance in pairs({0.25, 0.5, 1, 2, 5, 10, 15, 20, 40}) do
                     missionCommands.addCommandForGroup(
                         c2_client.group_id,
-                        string.format("%s clicks", distance),
+                        string.format("%s klicks", distance),
                         compass_direction_submenu_id,
                         function()
                             local point = troop.moose_group:GetDCSObject():getUnit(1):getPoint()
@@ -898,7 +898,7 @@ function TROOPCOMMAND:BuildCommandAndControlMenu(c2_client, options)
                                 -- troop.moose_group:RouteToVec3(point, 999)
                                 -- troop.moose_group:TaskRouteToVec2({x=point.x, y=point.z}, 999, "Off road")
                                 __troopship.utils.moveToPoint(troop.moose_group, point, 999, troop.movement_formation, heading)
-                                trigger.action.outTextForCoalition(c2_client.coalition, string.format("%s: Advancing %s for %s clicks to %s!", troop.troop_name, direction, distance, __troopship.utils.composeLLDDM(point)), 2 )
+                                trigger.action.outTextForCoalition(c2_client.coalition, string.format("%s: Advancing %s for %s klicks to %s!", troop.troop_name, direction, distance, __troopship.utils.composeLLDDM(point)), 2 )
                             end
                         end,
                         nil)

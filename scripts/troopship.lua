@@ -1496,7 +1496,7 @@ function __troopship.TROOPSHIP:RebuildUnloadMenu()
                 if not self.is_disable_general_unload then
                     local item = missionCommands.addCommandForGroup(
                         self.group_id,
-                        "Here, to advance to enemy",
+                        "Here, to advance to contact",
                         deploy_item_parent_menu_id,
                         function() self:UnloadTroops(troop, {is_advance_to_enemy=true}) end,
                         nil)

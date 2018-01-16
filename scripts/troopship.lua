@@ -854,13 +854,13 @@ function TROOPCOMMAND:BuildCommandAndControlMenu(c2_client, options)
             if parent_menu_id == c2_client.c2_submenu_id then
                 c2_client.c2_submenu_item_ids[#c2_client.c2_submenu_item_ids+1] = troop_menu_item_id
             end
-            local advance_to_submenu_id = missionCommands.addSubMenuForGroup(c2_client.group_id, "Move", troop_menu_item_id)
+            local advance_to_submenu_id = missionCommands.addSubMenuForGroup(c2_client.group_id, "Advance", troop_menu_item_id)
             for di, direction in pairs({"North", "Northeast", "East", "Southeast", "South", "Southwest", "West", "Northwest"}) do
                 local compass_direction_submenu_id = missionCommands.addSubMenuForGroup(c2_client.group_id, direction, advance_to_submenu_id)
                 for ds, distance in pairs({0.25, 0.5, 1, 2, 5, 10, 15, 20, 40}) do
                     missionCommands.addCommandForGroup(
                         c2_client.group_id,
-                        string.format("%s klicks", distance),
+                        string.format("%s clicks", distance),
                         compass_direction_submenu_id,
                         function()
                             local point = troop.moose_group:GetDCSObject():getUnit(1):getPoint()
@@ -898,12 +898,25 @@ function TROOPCOMMAND:BuildCommandAndControlMenu(c2_client, options)
                                 -- troop.moose_group:RouteToVec3(point, 999)
                                 -- troop.moose_group:TaskRouteToVec2({x=point.x, y=point.z}, 999, "Off road")
                                 __troopship.utils.moveToPoint(troop.moose_group, point, 999, troop.movement_formation, heading)
-                                trigger.action.outTextForCoalition(c2_client.coalition, string.format("%s: Advancing %s for %s klicks to %s!", troop.troop_name, direction, distance, __troopship.utils.composeLLDDM(point)), 2 )
+                                trigger.action.outTextForCoalition(c2_client.coalition, string.format("%s: Advancing %s for %s clicks to %s!", troop.troop_name, direction, distance, __troopship.utils.composeLLDDM(point)), 2 )
                             end
                         end,
                         nil)
                 end
             end
+            missionCommands.addCommandForGroup(
+                c2_client.group_id,
+                "To contact",
+                advance_to_submenu_id,
+                function()
+                    local results = __troopship.utils.moveGroupToNearestEnemyPosition(troop, troop.maximum_search_distance)
+                    if results ~= nil then
+                        trigger.action.outTextForCoalition(c2_client.coalition, string.format("%s: Advancing to contact, enemy at: %s", troop.troop_name, __troopship.utils.composeLLDDM(results.point)), 2 )
+                    else
+                        trigger.action.outTextForGroup(c2_client.group_id, string.format("%s: no enemy detected in vicinity!", troop.troop_name), 2)
+                    end
+                end,
+                nil)
             if not __troopship.utils.isEmpty(self.routing_zones) then
                 local routing_submenu_id = missionCommands.addSubMenuForGroup(c2_client.group_id, "Route to", troop_menu_item_id)
                 local routing_item_parent_menu_id = routing_submenu_id
@@ -928,19 +941,6 @@ function TROOPCOMMAND:BuildCommandAndControlMenu(c2_client, options)
                         nil)
                 end
             end
-            missionCommands.addCommandForGroup(
-                c2_client.group_id,
-                "Advance to contact",
-                troop_menu_item_id,
-                function()
-                    local results = __troopship.utils.moveGroupToNearestEnemyPosition(troop, troop.maximum_search_distance)
-                    if results ~= nil then
-                        trigger.action.outTextForCoalition(c2_client.coalition, string.format("%s: Advancing to contact: %s", troop.troop_name, __troopship.utils.composeLLDDM(results.point)), 2 )
-                    else
-                        trigger.action.outTextForGroup(c2_client.group_id, string.format("%s: no enemy detected in vicinity!", troop.troop_name), 2)
-                    end
-                end,
-                nil)
             missionCommands.addCommandForGroup(
                 c2_client.group_id,
                 "Hold position",
@@ -1051,8 +1051,7 @@ function TROOPCOMMAND:BuildCommandAndControlMenu(c2_client, options)
                         local point = __troopship.utils.getLeadUnit(troop.moose_group):getPoint()
                         point.x = point.x + 50
                         point.z = point.z + 50
-                        troop.movement_formation = formation
-                        __troopship.utils.moveToPoint(troop.moose_group, point, nil, troop.movement_formation, nil)
+                        __troopship.utils.moveToPoint(troop.moose_group, point, nil, formation, nil)
                         trigger.action.outTextForGroup(c2_client.group_id, string.format("%s: %s formation", troop.troop_name, formation), 1, false)
                     end,
                     nil)
@@ -1085,7 +1084,7 @@ function TROOPCOMMAND:BuildCommandAndControlMenu(c2_client, options)
                         local point = __troopship.utils.getLeadUnit(troop.moose_group):getPoint()
                         point.x = point.x + 50
                         point.z = point.z + 50
-                        __troopship.utils.moveToPoint(troop.moose_group, point, nil, troop.movement_formation, heading)
+                        __troopship.utils.moveToPoint(troop.moose_group, point, nil, nil, heading)
                         trigger.action.outTextForGroup(c2_client.group_id, string.format("%s: turning %s", troop.troop_name, direction), 1, false)
                     end,
                     nil)
@@ -1496,7 +1495,7 @@ function __troopship.TROOPSHIP:RebuildUnloadMenu()
                 if not self.is_disable_general_unload then
                     local item = missionCommands.addCommandForGroup(
                         self.group_id,
-                        "Here, to advance to contact",
+                        "Here, to advance to enemy",
                         deploy_item_parent_menu_id,
                         function() self:UnloadTroops(troop, {is_advance_to_enemy=true}) end,
                         nil)
@@ -1590,7 +1589,7 @@ end
 -- unload a group
 function __troopship.TROOPSHIP:UnloadTroops(troop, options)
     local direct_to_zone = options["deploy_route_to_zone"] or nil
-    local is_advance_to_enemy = options["is_advance_to_enemy"] or nil
+    local is_advance_to_enemy = options["advance_to_enemy"] or nil
     local is_hold_position = options["is_hold_position"] or nil
     if self.moose_unit:InAir() then
         self:__loadmasterMessage("Cannot unload while we are not on the ground, sir!")

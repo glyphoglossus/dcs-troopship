@@ -1495,7 +1495,7 @@ function __troopship.TROOPSHIP:RebuildUnloadMenu()
                 if not self.is_disable_general_unload then
                     local item = missionCommands.addCommandForGroup(
                         self.group_id,
-                        "Here, to advance to enemy",
+                        "Here, to advance to contact",
                         deploy_item_parent_menu_id,
                         function() self:UnloadTroops(troop, {is_advance_to_enemy=true}) end,
                         nil)
@@ -1589,7 +1589,7 @@ end
 -- unload a group
 function __troopship.TROOPSHIP:UnloadTroops(troop, options)
     local direct_to_zone = options["deploy_route_to_zone"] or nil
-    local is_advance_to_enemy = options["advance_to_enemy"] or nil
+    local is_advance_to_enemy = options["is_advance_to_enemy"] or nil
     local is_hold_position = options["is_hold_position"] or nil
     if self.moose_unit:InAir() then
         self:__loadmasterMessage("Cannot unload while we are not on the ground, sir!")
